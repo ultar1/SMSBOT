@@ -100,7 +100,7 @@ async def gpt_response(update: Update, context) -> None:
     """Interact with GPT to get a response."""
     await update.message.reply_text("Please provide your query for GPT.")
 
-    def gpt_query_handler(update: Update, context):
+    async def gpt_query_handler(update: Update, context):
         query = update.message.text
         await update.message.reply_text(f"Processing your query: {query}")
 
