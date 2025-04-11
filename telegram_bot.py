@@ -3,7 +3,7 @@ import time
 import os
 import sys
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, filters as Filters, CallbackContext
 from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
