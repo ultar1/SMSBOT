@@ -3,7 +3,7 @@ import time
 import os
 import sys
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, filters as Filters, CallbackContext
+from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters, CallbackContext
 from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
@@ -11,8 +11,8 @@ app = Flask(__name__)
 # Store the current email globally
 current_email = None
 
-# Move the updater to a global scope
-updater = Updater("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY")
+# Replace the updater with the Application class
+application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY").build()
 
 @app.route("/generate_email", methods=["GET"])
 def generate_email():
@@ -33,8 +33,8 @@ def get_inbox():
 
 @app.route("/", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), updater.bot)
-    updater.dispatcher.process_update(update)
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put(update)
     return "OK", 200
 
 @app.route("/")
@@ -119,6 +119,7 @@ def handle_buttons(update: Update, context: CallbackContext) -> None:
     else:
         update.message.reply_text("I didn't understand that. Please use the buttons.")
 
+# Update the main function to use the Application class
 def main():
     email = generate_temp_email()
     if email:
@@ -127,16 +128,13 @@ def main():
             check_inbox(email)
             time.sleep(10)  # Check inbox every 10 seconds
 
-    dp = updater.dispatcher
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("generate_email", generate_email_command))
+    application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
+    application.add_handler(CommandHandler("refresh", refresh))
+    application.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_buttons))
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("generate_email", generate_email_command))
-    dp.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
-    dp.add_handler(CommandHandler("refresh", refresh))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_buttons))
-
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == "__main__":
     # Update the Flask app to use the PORT environment variable for Heroku deployment
