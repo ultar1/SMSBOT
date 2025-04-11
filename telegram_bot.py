@@ -1,72 +1,58 @@
+import asyncio
 import requests
 import time
 import os
 import sys
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters, CallbackContext
-from flask import Flask, request, jsonify, render_template
+from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters
+from flask import Flask, request
 
 app = Flask(__name__)
 
 # Store the current email globally
 current_email = None
 
-# Replace the updater with the Application class
+# Initialize the application
 application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY").build()
 
-@app.route("/generate_email", methods=["GET"])
-def generate_email():
-    global current_email
-    current_email = generate_temp_email()
-    if current_email:
-        return jsonify({"email": current_email})
-    else:
-        return jsonify({"error": "Failed to generate email."}), 500
+@app.route("/", methods=["POST"])
+async def webhook():
+    if request.method == "POST":
+        await application.update_queue.put(
+            Update.de_json(data=request.get_json(force=True), bot=application.bot)
+        )
+    return "ok"
 
-@app.route("/get_inbox", methods=["GET"])
-def get_inbox():
-    if current_email:
-        check_inbox(current_email)
-        return jsonify({"message": "Inbox checked. See console for details."})
-    else:
-        return jsonify({"error": "No email generated yet."}), 400
-
-@app.route("/")
-def index():
-    return render_template("index.html")
-
-# Update the start command to include buttons
-def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, _) -> None:
     keyboard = [["Generate Email", "Refresh Inbox"], ["Refresh Bot"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    update.message.reply_text(
+    await update.message.reply_text(
         'Hello! I am your bot. Use the buttons below to interact with me.',
         reply_markup=reply_markup
     )
 
-# Define a message handler
-def echo(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text(update.message.text)
-
-# Add commands to the Telegram bot for generating a new email and refreshing the inbox
-def generate_email_command(update: Update, context: CallbackContext) -> None:
+async def generate_email_command(update: Update, _) -> None:
     global current_email
     current_email = generate_temp_email()
     if current_email:
-        update.message.reply_text(f"Generated Email: {current_email}")
+        await update.message.reply_text(f"Generated Email: {current_email}")
     else:
-        update.message.reply_text("Failed to generate email.")
+        await update.message.reply_text("Failed to generate email.")
 
-def refresh_inbox_command(update: Update, context: CallbackContext) -> None:
+async def refresh_inbox_command(update: Update, _) -> None:
     if current_email:
-        update.message.reply_text("Checking inbox... Check the console for details.")
-        check_inbox(current_email)
+        await update.message.reply_text("Checking inbox...")
+        messages = check_inbox(current_email)
+        if messages:
+            for msg in messages:
+                await update.message.reply_text(f"From: {msg['from']}\nSubject: {msg['subject']}\nBody: {msg.get('textBody', 'No content')}")
+        else:
+            await update.message.reply_text("No new messages.")
     else:
-        update.message.reply_text("No email generated yet. Please generate an email first.")
+        await update.message.reply_text("No email generated yet. Please generate an email first.")
 
-# Add a refresh command to restart the bot
-def refresh(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text("Refreshing the bot...")
+async def refresh(update: Update, _) -> None:
+    await update.message.reply_text("Refreshing the bot...")
     os.execl(sys.executable, sys.executable, *sys.argv)
 
 def generate_temp_email():
@@ -74,11 +60,8 @@ def generate_temp_email():
     response = requests.get("https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1")
     if response.status_code == 200:
         email = response.json()[0]
-        print(f"Generated Email: {email}")
         return email
-    else:
-        print("Failed to generate email.")
-        return None
+    return None
 
 def check_inbox(email):
     """Check the inbox of the temporary email for new messages."""
@@ -87,33 +70,25 @@ def check_inbox(email):
     if response.status_code == 200:
         messages = response.json()
         if messages:
-            print(f"You have {len(messages)} new message(s):")
             for message in messages:
-                print(f"From: {message['from']}, Subject: {message['subject']}")
-                # Fetch the full message
                 msg_id = message['id']
                 msg_response = requests.get(f"https://www.1secmail.com/api/v1/?action=readMessage&login={username}&domain={domain}&id={msg_id}")
                 if msg_response.status_code == 200:
-                    print("Message Body:")
-                    print(msg_response.json().get("textBody", "No content"))
-        else:
-            print("No new messages.")
-    else:
-        print("Failed to check inbox.")
+                    message.update(msg_response.json())
+            return messages
+    return []
 
-# Update the message handler to handle button presses
-def handle_buttons(update: Update, context: CallbackContext) -> None:
+async def handle_buttons(update: Update, context) -> None:
     text = update.message.text
     if text == "Generate Email":
-        generate_email_command(update, context)
+        await generate_email_command(update, context)
     elif text == "Refresh Inbox":
-        refresh_inbox_command(update, context)
+        await refresh_inbox_command(update, context)
     elif text == "Refresh Bot":
-        refresh(update, context)
+        await refresh(update, context)
     else:
-        update.message.reply_text("I didn't understand that. Please use the buttons.")
+        await update.message.reply_text("I didn't understand that. Please use the buttons.")
 
-# Update the main function to use the Application class
 async def main():
     # Add handlers
     application.add_handler(CommandHandler("start", start))
@@ -122,20 +97,12 @@ async def main():
     application.add_handler(CommandHandler("refresh", refresh))
     application.add_handler(MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_buttons))
 
-    # Start the webhook
+    # Set the webhook
     await application.bot.set_webhook(url="https://smsbott-52febd4592e2.herokuapp.com/")
     
     # Start the Flask application
     port = int(os.environ.get("PORT", 5000))
-    webserver = Flask(__name__)
-    
-    @webserver.route("/", methods=["POST"])
-    def webhook():
-        update = Update.de_json(request.get_json(force=True), application.bot)
-        application.process_update(update)
-        return "OK"
-    
-    webserver.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     asyncio.run(main())
