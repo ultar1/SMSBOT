@@ -13,9 +13,13 @@ from telegram.ext import (
 )
 import yt_dlp
 import openai
+from openai import AsyncOpenAI
 
 # Set up OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Initialize AsyncOpenAI client
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Initialize Quart app
 app = Quart(__name__)
@@ -218,6 +222,18 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
     await update.message.reply_text(f"Searching for '{music_name}'...")
     
     try:
+        # Create a temporary cookies file
+        cookies_content = """# Netscape HTTP Cookie File
+# https://curl.haxx.se/rfc/cookie_spec.html
+.youtube.com	TRUE	/	TRUE	0	VISITOR_PRIVACY_METADATA	CgJHQhIEGgAgFA%3D%3D
+.youtube.com	TRUE	/	TRUE	0	ST-xuwub9	session_logininfo=AFmmF2swRAIgcTtsmhpuH-EHhDzontzuw1xT3y106AWfjpBMaztC8k8CIF6_zD35g4fInXHGBBqwwtoBD-ABRXxRWfpjgTSwGf6_%3AQUQ3MjNmeGJibXZLTnZya1dfTEZQLWxLOGNoN1ZLZ1pkZFlvUEZoaFlhVW51MnRDeUMxV3p6eEJ2cEdiQWdlVVBjaGszQWZBMlVIbGdHUG1FeDUzRE83UU4zWGlGMnNaU2M5S0FXY0tRdlJCZkxid09neUloUVlwREtSUG5vQkZxeDVIbWVKQ2R4dl9FYU5CUU1fUEhTSTBDT0RqZzVtTWd3
+.youtube.com	TRUE	/	TRUE	0	_Secure-3PSID	g.a000uAgzaeQJI-GW4afa5eHCLPA9trukRqfk9ScKv08Md-Oh68Y5ZfxR6ENnnW-NKE_CXbmCDQACgYKAVwSARUSFQHGX2Miwp4DqtCiQ3dnBxpcEwzd-hoVAUF8yKq_Ovw_tv8LT2qGPoZByMRm0076
+.youtube.com	TRUE	/	TRUE	0	LOGIN_INFO	AFmmF2swRAIgcTtsmhpuH-EHhDzontzuw1xT3y106AWfjpBMaztC8k8CIF6_zD35g4fInXHGBBqwwtoBD-ABRXxRWfpjgTSwGf6_:QUQ3MjNmeGJibXZLTnZya1dfTEZQLWxLOGNoN1ZLZ1pkZFlvUEZoaFlhVW51MnRDeUMxV3p6eEJ2cEdiQWdlVVBjaGszQWZBMlVIbGdHUG1FeDUzRE83UU4zWGlGMnNaU2M5S0FXY0tRdlJCZkxid09neUloUVlwREtSUG5vQkZxeDVIbWVKQ2R4dl9FYU5CUU1fUEhTSTBDT0RqZzVtTWd3"""
+        
+        cookies_file = "youtube_cookies.txt"
+        with open(cookies_file, "w") as f:
+            f.write(cookies_content)
+        
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -225,14 +241,24 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
+            'cookiefile': cookies_file,  # Use the cookies file
             'outtmpl': f"{music_name}.mp3",
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([f"ytsearch:{music_name}"])
+            
+        # Clean up the cookies file
+        import os
+        if os.path.exists(cookies_file):
+            os.remove(cookies_file)
+            
         await update.message.reply_text(f"Music '{music_name}' downloaded successfully.")
     except Exception as e:
         await update.message.reply_text(f"Failed to download music: {str(e)}")
+        # Clean up the cookies file in case of error
+        if os.path.exists(cookies_file):
+            os.remove(cookies_file)
     
     return ConversationHandler.END
 
@@ -247,12 +273,13 @@ async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
     await update.message.reply_text(f"Processing your query: {query}")
     
     try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=query,
-            max_tokens=150
+        response = await client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "user", "content": query}
+            ]
         )
-        answer = response.choices[0].text.strip()
+        answer = response.choices[0].message.content.strip()
         await update.message.reply_text(answer)
     except Exception as e:
         await update.message.reply_text(f"Failed to get GPT response: {str(e)}")
