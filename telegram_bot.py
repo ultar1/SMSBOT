@@ -212,17 +212,20 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
         output_dir = "/app/downloads"  # Use /app directory on Heroku
         os.makedirs(output_dir, exist_ok=True)
         
-        # Create cookies file
+        # Create cookies file with proper format
         cookies = """# Netscape HTTP Cookie File
-.youtube.com	TRUE	/	TRUE	0	VISITOR_PRIVACY_METADATA	CgJORxIEGgAgDQ%3D%3D
-.youtube.com	TRUE	/	TRUE	0	__Secure-3PSID	g.a000vAgzaXaoUv1lfqGXwF6Zq-EMUaAPgcfoBRGKFy7_sqpIEql8St292ulyECZ1G5EFisnYowACgYKAbUSARUSFQHGX2MirrEkqfKXDX-WmRa8gqfE2xoVAUF8yKrDwG0-WvGRFv2sF_DYTp9t0076
-.youtube.com	TRUE	/	TRUE	0	SIDCC	AKEyXzWUOdGxFHAPyzpF9y719BZEjM9A00S1rGZ75qjfYI1j_YqTSo2TRWT5E_K_kV9ooqsp3ig
-.youtube.com	TRUE	/	TRUE	0	SID	g.a000vAgzaXaoUv1lfqGXwF6Zq-EMUaAPgcfoBRGKFy7_sqpIEql8D17hw7luxjnDnZHIou-TuQACgYKASQSARUSFQHGX2MihZqVL4JB68O_Ubzt6wTXvRoVAUF8yKrbltMdV7lzK37KzG2ZJTys0076
-.youtube.com	TRUE	/	TRUE	0	LOGIN_INFO	AFmmF2swRgIhAJaX938y0qaO7SRZ9J-4nFNuE_VsvV_d1YV15oU4JYxKAiEAwkMOXRbQhv9g57qZrfzA0NGYbXYBRaR4sJUJ2RukvlU:QUQ3MjNmd2QxeXE4eXFtSi1ZQ0txZFA3SjJ6bFBYNUNhX3R5ZVB5TFBhV2NBbVpZeTkwcG0wa2thTmpVY3JRT2M1TkNXamg2YUpFUmRXSG8wV2o2Z3dTS1RiaExiS0xZdndnSG1NWTl3Ui0zd3hRMnc3Qk1SWHM5eUh5eVlxWFlBd2s0Y3NqZVRHNkd6eWs1YWdHXy1OSTRaVGdHazN4cDB3
-.youtube.com	TRUE	/	TRUE	0	VISITOR_INFO1_LIVE	ky1HG6C5ZZA"""
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.youtube.com	TRUE	/	TRUE	1743897600	VISITOR_PRIVACY_METADATA	CgJORxIEGgAgDQ%3D%3D
+.youtube.com	TRUE	/	TRUE	1743897600	__Secure-3PSID	g.a000vAgzaXaoUv1lfqGXwF6Zq-EMUaAPgcfoBRGKFy7_sqpIEql8St292ulyECZ1G5EFisnYowACgYKAbUSARUSFQHGX2MirrEkqfKXDX-WmRa8gqfE2xoVAUF8yKrDwG0-WvGRFv2sF_DYTp9t0076
+.youtube.com	TRUE	/	TRUE	1743897600	SIDCC	AKEyXzWUOdGxFHAPyzpF9y719BZEjM9A00S1rGZ75qjfYI1j_YqTSo2TRWT5E_K_kV9ooqsp3ig
+.youtube.com	TRUE	/	TRUE	1743897600	SID	g.a000vAgzaXaoUv1lfqGXwF6Zq-EMUaAPgcfoBRGKFy7_sqpIEql8D17hw7luxjnDnZHIou-TuQACgYKASQSARUSFQHGX2MihZqVL4JB68O_Ubzt6wTXvRoVAUF8yKrbltMdV7lzK37KzG2ZJTys0076
+.youtube.com	TRUE	/	TRUE	1743897600	LOGIN_INFO	AFmmF2swRgIhAJaX938y0qaO7SRZ9J-4nFNuE_VsvV_d1YV15oU4JYxKAiEAwkMOXRbQhv9g57qZrfzA0NGYbXYBRaR4sJUJ2RukvlU:QUQ3MjNmd2QxeXE4eXFtSi1ZQ0txZFA3SjJ6bFBYNUNhX3R5ZVB5TFBhV2NBbVpZeTkwcG0wa2thTmpVY3JRT2M1TkNXamg2YUpFUmRXSG8wV2o2Z3dTS1RiaExiS0xZdndnSG1NWTl3Ui0zd3hRMnc3Qk1SWHM5eUh5eVlxWFlBd2s0Y3NqZVRHNkd6eWs1YWdHXy1OSTRaVGdHazN4cDB3
+.youtube.com	TRUE	/	TRUE	1743897600	VISITOR_INFO1_LIVE	ky1HG6C5ZZA"""
 
         cookies_file = os.path.join(output_dir, "youtube_cookies.txt")
-        with open(cookies_file, "w") as f:
+        with open(cookies_file, "w", encoding='utf-8') as f:
             f.write(cookies)
 
         # First, try to get video info with simple options
@@ -231,14 +234,22 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
             'no_warnings': True,
             'extract_flat': True,
             'cookiefile': cookies_file,
+            'cookiesfrombrowser': None,  # Disable browser cookies
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'no_color': True,
+            'age_limit': None,
+            'legacy_server_connect': True,
+            'http_chunk_size': 10485760,  # 10MB chunks
         }
 
         with yt_dlp.YoutubeDL(search_opts) as ydl:
             # Search for the video
+            print("Searching for video...")
             search_query = f"ytsearch1:{music_name}"
             result = ydl.extract_info(search_query, download=False)
             
             if not result or 'entries' not in result or not result['entries']:
+                print("No results found")
                 await update.message.reply_text("❌ Could not find the music. Please try a more specific search term.")
                 return ConversationHandler.END
 
@@ -248,6 +259,7 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
             title = video.get('title', 'Unknown Title')
             
             if not video_url:
+                print("Could not extract video URL")
                 await update.message.reply_text("❌ Could not extract video URL. Please try another song.")
                 return ConversationHandler.END
 
@@ -255,26 +267,45 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
 
             # Download options for actual download
             download_opts = {
-                'format': 'bestaudio/best',
+                'format': 'm4a/bestaudio/best',  # Try m4a first
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
-                    'preferredquality': '192',
+                    'preferredquality': '128',
                 }],
+                'extractaudio': True,
+                'addmetadata': True,
                 'cookiefile': cookies_file,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'referer': 'https://www.youtube.com/watch?v=P016u3AveRQ',  # Add specific referer
                 'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
                 'no_warnings': True,
-                'geo_bypass': True,
+                'quiet': False,
+                'verbose': True,
                 'nocheckcertificate': True,
+                'no_check_certificate': True,
                 'ignoreerrors': True,
+                'geo_bypass': True,
+                'geo_bypass_country': 'US',
+                'extractor_retries': 5,
+                'retries': 10,
+                'fragment_retries': 10,
+                'skip_download': False,
+                'keepvideo': False,
+                'hls_prefer_native': True,
+                'http_chunk_size': 10485760,  # 10MB per chunk
+                'buffersize': 1024*1024,  # 1MB buffer
+                'external_downloader_args': ['-timeout', '30']
             }
 
             try:
+                print(f"Attempting to download {video_url}")
                 # Attempt download
                 with yt_dlp.YoutubeDL(download_opts) as ydl:
                     ydl.download([video_url])
                 
                 # Look for the downloaded file
+                print("Looking for downloaded file...")
                 downloaded_file = None
                 for file in os.listdir(output_dir):
                     if file.endswith('.mp3'):
@@ -283,6 +314,7 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
 
                 if downloaded_file and os.path.exists(downloaded_file):
                     try:
+                        print(f"Sending file: {downloaded_file}")
                         # Send the audio file
                         with open(downloaded_file, 'rb') as audio:
                             await update.message.reply_audio(
@@ -299,6 +331,7 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
                         else:
                             await update.message.reply_text("❌ Error sending the audio file. Please try a different song.")
                 else:
+                    print("No MP3 file found")
                     await update.message.reply_text("❌ Failed to process the audio. Please try another song.")
 
             except Exception as e:
