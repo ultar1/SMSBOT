@@ -29,10 +29,21 @@ application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8Rklux
 
 @app.route("/", methods=["POST"])
 async def webhook():
-    """Handle incoming webhook updates from Telegram."""
+    """Handle incoming webhook updates."""
     try:
         json_data = await request.get_json()
         print(f"Received update: {json_data}")  # Debug log
+        
+        # Check if this is a Heroku webhook update
+        if 'webhook_metadata' in json_data:
+            print("Received Heroku webhook update - ignoring")
+            return {"ok": True}
+            
+        # This is a Telegram update
+        if 'update_id' not in json_data:
+            print("Invalid Telegram update format")
+            return {"ok": True}
+            
         update = Update.de_json(json_data, application.bot)
         await application.process_update(update)
         return {"ok": True}
@@ -356,7 +367,7 @@ async def setup():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
 
     # Set webhook URL
-    webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/webhook"
+    webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/"  # Changed to use root path
     await application.bot.set_webhook(url=webhook_url)
     print(f"Webhook set to {webhook_url}")
 
