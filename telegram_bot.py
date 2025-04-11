@@ -443,10 +443,21 @@ async def shutdown():
         print(f"Error during shutdown: {e}")
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
+    # Initialize application before running
+    asyncio.run(setup())
+    
+    # Run the Quart application with proper worker configuration
     app.run(
         host="0.0.0.0",
-        port=port,
-        debug=False,
-        use_reloader=False
+        port=int(os.environ.get("PORT", 5000))
     )
+
+# Enable graceful shutdown
+import signal
+
+def handle_sigterm(signum, frame):
+    print("Received SIGTERM. Performing cleanup...")
+    asyncio.run(shutdown())
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, handle_sigterm)
