@@ -12,7 +12,7 @@ app = Flask(__name__)
 current_email = None
 
 # Move the updater to a global scope
-updater = Updater("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY", use_context=True)
+updater = Updater("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY")
 
 @app.route("/generate_email", methods=["GET"])
 def generate_email():
