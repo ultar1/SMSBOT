@@ -210,7 +210,7 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
     
     try:
         # Configure yt-dlp options
-        output_dir = "/tmp/downloads"  # Use /tmp directory on Heroku
+        output_dir = "/app/downloads"  # Use /app directory on Heroku
         os.makedirs(output_dir, exist_ok=True)
         
         # Create cookies file
@@ -227,7 +227,7 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
             f.write(cookies)
         
         ydl_opts = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -235,48 +235,79 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
             }],
             'cookiefile': cookies_file,
             'noplaylist': True,
-            'quiet': True,
-            'no_warnings': True,
-            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s')
+            'writethumbnail': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': True,
+            'no_color': True,
+            'geo_bypass': True,
+            'quiet': False,  # Enable output for debugging
+            'verbose': True,  # Add verbose output
+            'extract_flat': False,
+            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
+            'progress_hooks': [lambda d: print(f"Download progress: {d.get('status', 'unknown')}")]
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
-                # Search for the video
+                # First try to get video info
+                print(f"Searching for: {music_name}")
                 result = ydl.extract_info(f"ytsearch:{music_name}", download=False)
                 
                 if not result or 'entries' not in result or not result['entries']:
+                    print("No results found")
                     await update.message.reply_text("❌ Could not find the requested music. Please try a different search term.")
                     return ConversationHandler.END
 
                 # Get the first result
                 video = result['entries'][0]
                 title = video.get('title', 'Unknown Title')
+                print(f"Found video: {title}")
                 await update.message.reply_text(f"📥 Found: {title}\nDownloading...")
 
-                # Download the video
-                ydl.download([video['webpage_url']])
+                try:
+                    # Download with primary format
+                    print("Attempting download...")
+                    ydl.download([video['webpage_url']])
+                except Exception as e:
+                    print(f"Primary download failed: {str(e)}")
+                    # Try alternative format
+                    ydl_opts['format'] = 'worstaudio/worst'
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
+                        print("Trying alternative format...")
+                        ydl2.download([video['webpage_url']])
                 
                 # Find and send the downloaded file
-                output_file = os.path.join(output_dir, f"{title}.mp3")
-                if not os.path.exists(output_file):
-                    # Try alternative filename pattern
-                    files = os.listdir(output_dir)
-                    mp3_files = [f for f in files if f.endswith('.mp3')]
-                    if mp3_files:
-                        output_file = os.path.join(output_dir, mp3_files[0])
+                print("Looking for downloaded file...")
+                output_file = None
+                for file in os.listdir(output_dir):
+                    if file.endswith('.mp3'):
+                        output_file = os.path.join(output_dir, file)
+                        break
 
-                if os.path.exists(output_file):
-                    # Send the audio file
-                    await update.message.reply_audio(
-                        audio=open(output_file, 'rb'),
-                        title=title,
-                        performer=video.get('uploader', 'Unknown Artist'),
-                        duration=video.get('duration')
-                    )
-                    await update.message.reply_text(f"✅ Successfully sent: {title}")
+                if output_file and os.path.exists(output_file):
+                    print(f"Sending file: {output_file}")
+                    file_size = os.path.getsize(output_file)
+                    print(f"File size: {file_size} bytes")
+                    
+                    if file_size > 0:
+                        try:
+                            with open(output_file, 'rb') as audio:
+                                await update.message.reply_audio(
+                                    audio=audio,
+                                    title=title,
+                                    performer=video.get('uploader', 'Unknown Artist'),
+                                    duration=video.get('duration')
+                                )
+                            await update.message.reply_text(f"✅ Successfully sent: {title}")
+                        except Exception as e:
+                            print(f"Error sending file: {str(e)}")
+                            await update.message.reply_text("❌ Error sending the audio file. Please try again.")
+                    else:
+                        print("File exists but is empty")
+                        await update.message.reply_text("❌ Downloaded file is empty. Please try another song.")
                 else:
-                    await update.message.reply_text("❌ Sorry, there was an error processing the audio file.")
+                    print("No MP3 file found")
+                    await update.message.reply_text("❌ Could not process the audio. Please try another song.")
 
             except Exception as e:
                 print(f"Download error: {str(e)}")
