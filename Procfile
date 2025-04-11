@@ -1,1 +1,1 @@
-web: gunicorn telegram_bot:app
+web: gunicorn telegram_bot:app --worker-class uvicorn.workers.UvicornWorker
