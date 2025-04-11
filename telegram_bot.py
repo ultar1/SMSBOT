@@ -7,36 +7,27 @@ from quart import Quart, request
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters
 
-# Initialize Flask app with Quart for async support
+# Initialize Quart app
 app = Quart(__name__)
 
 # Store the current email globally
 current_email = None
 
-# Initialize the application
+# Initialize the Telegram application
 application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY").build()
 
-@app.route("/", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 async def webhook():
+    """Handle incoming webhook updates from Telegram."""
     if request.method == "POST":
+        json_data = await request.get_json()
         try:
-            json_data = await request.get_json()
-            # Print the received data for debugging
-            print("Received update:", json_data)
-            
-            # Ensure update_id is present
-            if 'update_id' not in json_data:
-                print("Missing update_id in update")
-                return "OK", 200
-                
-            update = Update.de_json(json_data, application.bot)
-            await application.process_update(update)
-            return "ok"
+            await application.update_queue.put(Update.de_json(json_data, application.bot))
+            return {"ok": True}
         except Exception as e:
             print(f"Error processing update: {str(e)}")
-            # Return 200 OK even on error to prevent Telegram from retrying
-            return "OK", 200
-    return "OK"
+            return {"ok": True}  # Return success to prevent Telegram retries
+    return {"ok": True}
 
 async def start(update: Update, _) -> None:
     keyboard = [["Generate Email", "Refresh Inbox"], ["Refresh Bot"]]
@@ -104,7 +95,8 @@ async def handle_buttons(update: Update, context) -> None:
     else:
         await update.message.reply_text("I didn't understand that. Please use the buttons.")
 
-async def main():
+async def setup():
+    """Set up the application and webhook."""
     # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("generate_email", generate_email_command))
@@ -112,12 +104,28 @@ async def main():
     application.add_handler(CommandHandler("refresh", refresh))
     application.add_handler(MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_buttons))
 
-    # Set the webhook
-    await application.bot.set_webhook(url="https://smsbott-52febd4592e2.herokuapp.com/")
-    
-    # Start the Quart application
-    port = int(os.environ.get("PORT", 5000))
-    await app.run_task(host="0.0.0.0", port=port)
+    # Set webhook URL
+    webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/webhook"
+    await application.bot.set_webhook(url=webhook_url)
+    print(f"Webhook set to {webhook_url}")
+
+@app.before_serving
+async def startup():
+    """Initialize the bot before serving."""
+    await setup()
+    await application.initialize()
+    await application.start()
+
+@app.after_serving
+async def shutdown():
+    """Cleanup when shutting down."""
+    await application.stop()
+    await application.shutdown()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Run the Quart application
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        use_reloader=False
+    )

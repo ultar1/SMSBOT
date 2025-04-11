@@ -1,1 +1,1 @@
-web: gunicorn telegram_bot:app --worker-class uvicorn.workers.UvicornWorker
+web: hypercorn telegram_bot:app --bind 0.0.0.0:$PORT
