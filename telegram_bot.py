@@ -322,9 +322,14 @@ async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
     await update.message.reply_text("🤔 Processing your query...")
 
     try:
-        response = await model.generate_content(query)
-        if response.text:
-            await update.message.reply_text(response.text)
+        # Create Gemini response in an async way
+        response = model.generate_content(query)
+        
+        if hasattr(response, 'text'):
+            # Split long responses into chunks if needed
+            chunks = [response.text[i:i+4096] for i in range(0, len(response.text), 4096)]
+            for chunk in chunks:
+                await update.message.reply_text(chunk)
         else:
             await update.message.reply_text("I couldn't generate a response. Please try asking something else.")
             
