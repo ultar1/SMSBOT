@@ -8,6 +8,11 @@ import string
 from quart import Quart, request
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters
+import yt_dlp
+import openai
+
+# Set up OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize Quart app
 app = Quart(__name__)
@@ -32,7 +37,7 @@ async def webhook():
     return {"ok": True}
 
 async def start(update: Update, _) -> None:
-    keyboard = [["Generate Email", "Refresh Inbox"], ["Refresh Bot"]]
+    keyboard = [["Generate Email", "Refresh Inbox"], ["Refresh Bot", "Download Music", "GPT"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
         'Hello! I am your bot. Use the buttons below to interact with me.',
@@ -62,6 +67,55 @@ async def refresh_inbox_command(update: Update, _) -> None:
 async def refresh(update: Update, _) -> None:
     await update.message.reply_text("Refreshing the bot...")
     os.execl(sys.executable, sys.executable, *sys.argv)
+
+async def download_music(update: Update, context) -> None:
+    """Ask for a music name and download it."""
+    await update.message.reply_text("Please provide the name of the music you want to download.")
+
+    def music_response_handler(update: Update, context):
+        music_name = update.message.text
+        await update.message.reply_text(f"Searching for '{music_name}'...")
+
+        # Use yt_dlp to download music
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'outtmpl': f"{music_name}.mp3",
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([f"ytsearch:{music_name}"])
+            await update.message.reply_text(f"Music '{music_name}' downloaded successfully.")
+        except Exception as e:
+            await update.message.reply_text(f"Failed to download music: {str(e)}")
+
+    context.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, music_response_handler))
+
+async def gpt_response(update: Update, context) -> None:
+    """Interact with GPT to get a response."""
+    await update.message.reply_text("Please provide your query for GPT.")
+
+    def gpt_query_handler(update: Update, context):
+        query = update.message.text
+        await update.message.reply_text(f"Processing your query: {query}")
+
+        try:
+            response = openai.Completion.create(
+                engine="text-davinci-003",
+                prompt=query,
+                max_tokens=150
+            )
+            answer = response.choices[0].text.strip()
+            await update.message.reply_text(answer)
+        except Exception as e:
+            await update.message.reply_text(f"Failed to get GPT response: {str(e)}")
+
+    context.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, gpt_query_handler))
 
 def generate_fallback_email():
     """Generate a random fallback email."""
@@ -149,6 +203,10 @@ async def handle_buttons(update: Update, context) -> None:
         await refresh_inbox_command(update, context)
     elif text == "Refresh Bot":
         await refresh(update, context)
+    elif text == "Download Music":
+        await download_music(update, context)
+    elif text == "GPT":
+        await gpt_response(update, context)
     else:
         await update.message.reply_text("I didn't understand that. Please use the buttons.")
 
@@ -159,6 +217,8 @@ async def setup():
     application.add_handler(CommandHandler("generate_email", generate_email_command))
     application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
     application.add_handler(CommandHandler("refresh", refresh))
+    application.add_handler(CommandHandler("download_music", download_music))
+    application.add_handler(CommandHandler("gpt", gpt_response))
     application.add_handler(MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_buttons))
 
     # Set webhook URL
