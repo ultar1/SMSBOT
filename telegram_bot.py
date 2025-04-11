@@ -31,13 +31,6 @@ def get_inbox():
     else:
         return jsonify({"error": "No email generated yet."}), 400
 
-@app.route("/", methods=["POST"])
-def webhook():
-    json_data = request.get_json(force=True)
-    update = Update.de_json(json_data, application.bot)
-    application.process_update(update)
-    return "OK", 200
-
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -135,9 +128,12 @@ def main():
     application.add_handler(CommandHandler("refresh", refresh))
     application.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_buttons))
 
-    application.run_polling()
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        url_path="",
+        webhook_url="https://smsbott-52febd4592e2.herokuapp.com/"
+    )
 
 if __name__ == "__main__":
-    # Update the Flask app to use the PORT environment variable for Heroku deployment
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    main()
