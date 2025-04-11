@@ -96,6 +96,8 @@ def check_inbox(email):
     """Check the inbox of the temporary email for new messages."""
     try:
         username, domain = email.split("@")
+        print(f"Checking inbox for: {email}")  # Debug log
+
         response = requests.get(
             "https://www.1secmail.com/api/v1/",
             params={
@@ -105,8 +107,9 @@ def check_inbox(email):
             },
             timeout=10
         )
+        print(f"Inbox API Response: {response.text}")  # Debug log
         response.raise_for_status()
-        
+
         messages = response.json()
         if messages:
             for message in messages:
@@ -122,12 +125,14 @@ def check_inbox(email):
                         },
                         timeout=10
                     )
+                    print(f"Message {msg_id} Response: {msg_response.text}")  # Debug log
                     msg_response.raise_for_status()
                     message.update(msg_response.json())
                 except (requests.RequestException, KeyError) as e:
                     print(f"Error fetching message {msg_id}: {str(e)}")
                     continue
             return messages
+        print("No messages found in the inbox.")
         return []
     except requests.RequestException as e:
         print(f"Error checking inbox: {str(e)}")
