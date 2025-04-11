@@ -375,7 +375,10 @@ async def shutdown():
     await application.shutdown()
 
 if __name__ == "__main__":
-    # Run the Quart application with the correct configuration
+    # Initialize application before running
+    asyncio.run(setup())
+    
+    # Run the Quart application
     app.run(
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
