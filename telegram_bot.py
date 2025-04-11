@@ -64,26 +64,20 @@ async def refresh(update: Update, _) -> None:
 def generate_temp_email():
     """Generate a temporary email address using a public API."""
     try:
-        response = requests.get(
-            "https://www.1secmail.com/api/v1/",
-            params={"action": "genRandomMailbox", "count": 1},
-            timeout=10
-        )
-        response.raise_for_status()  # Raise an exception for bad status codes
+        response = requests.get("https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1")
+        print(f"API Response: {response.text}")  # Debug log
         
-        email_list = response.json()
-        if not email_list or not isinstance(email_list, list):
-            print("Invalid response format from email API")
-            return None
-            
-        email = email_list[0]
-        print(f"Successfully generated email: {email}")
-        return email
-    except requests.RequestException as e:
-        print(f"Error generating email: {str(e)}")
+        if response.status_code == 200:
+            emails = response.json()
+            if emails and isinstance(emails, list) and len(emails) > 0:
+                email = emails[0]
+                print(f"Successfully generated email: {email}")
+                return email
+        
+        print(f"Failed to generate email. Status code: {response.status_code}")
         return None
-    except (ValueError, IndexError) as e:
-        print(f"Error processing API response: {str(e)}")
+    except Exception as e:
+        print(f"Error generating email: {str(e)}")
         return None
 
 def check_inbox(email):
