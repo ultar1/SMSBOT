@@ -37,13 +37,17 @@ application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8Rklux
 async def webhook():
     """Handle incoming webhook updates from Telegram."""
     if request.method == "POST":
-        json_data = await request.get_json()
         try:
-            await application.update_queue.put(Update.de_json(json_data, application.bot))
+            json_data = await request.get_json()
+            print(f"Received update: {json_data}")  # Debug log
+            
+            update = Update.de_json(json_data, application.bot)
+            await application.process_update(update)
+            
             return {"ok": True}
         except Exception as e:
             print(f"Error processing update: {str(e)}")
-            return {"ok": True}  # Return success to prevent Telegram retries
+            return {"ok": True}
     return {"ok": True}
 
 async def start(update: Update, _) -> None:
@@ -337,16 +341,15 @@ async def setup():
         name="gpt_conversation"
     )
 
-    # Add handlers
-    application.add_handler(music_conv_handler)
-    application.add_handler(gpt_conv_handler)
-    
-    # Add other handlers
+    # Add handlers in the correct order
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("generate_email", generate_email_command))
     application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
     application.add_handler(CommandHandler("refresh", refresh))
-    
+    application.add_handler(music_conv_handler)
+    application.add_handler(gpt_conv_handler)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
+
     # Set webhook URL
     webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/webhook"
     await application.bot.set_webhook(url=webhook_url)
@@ -367,9 +370,10 @@ async def shutdown():
     await application.shutdown()
 
 if __name__ == "__main__":
-    # Run the Quart application
+    # Run the Quart application with the correct configuration
     app.run(
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000)),
+        debug=False,
         use_reloader=False
     )
