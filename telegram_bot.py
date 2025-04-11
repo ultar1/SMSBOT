@@ -317,7 +317,7 @@ async def shutdown():
     await application.stop()
     await application.shutdown()
 
-if __name__:
+if __name__ == "__main__":
     # Run the Quart application
     app.run(
         host="0.0.0.0",
