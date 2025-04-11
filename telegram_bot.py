@@ -7,7 +7,10 @@ import random
 import string
 from quart import Quart, request
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters, ConversationHandler, CallbackContext
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, 
+    ConversationHandler, CallbackContext, filters
+)
 import yt_dlp
 import openai
 
