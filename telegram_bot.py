@@ -5,24 +5,24 @@ import os
 import sys
 import random
 import string
-from quart import Quart, request  # Make sure request is imported
+import google.generativeai as genai
+from quart import Quart, request
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, 
     ConversationHandler, CallbackContext, filters
 )
 import yt_dlp
-import google.generativeai as genai
 
 # Initialize Quart app
 app = Quart(__name__)
 
-# Store the current email globally
-current_email = None
-
 # Initialize Gemini
 genai.configure(api_key="AIzaSyDsvDWz-lOhuGyQV5rL-uumbtlNamXqfWM")
 model = genai.GenerativeModel('gemini-pro')
+
+# Store the current email globally
+current_email = None
 
 # Initialize the Telegram application
 application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY").build()
