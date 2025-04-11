@@ -126,7 +126,7 @@ def main():
     application.add_handler(CommandHandler("generate_email", generate_email_command))
     application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
     application.add_handler(CommandHandler("refresh", refresh))
-    application.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_buttons))
+    application.add_handler(MessageHandler(Filters.Text & ~Filters.command, handle_buttons))
 
     application.run_webhook(
         listen="0.0.0.0",
