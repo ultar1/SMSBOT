@@ -423,25 +423,36 @@ async def setup():
 @app.before_serving
 async def startup():
     """Initialize the bot before serving."""
-    await setup()
-    await application.initialize()
-    await application.start()
-    print("Bot started successfully!")
+    try:
+        await setup()
+        await application.initialize()
+        await application.start()
+        print("Bot started successfully!")
+    except Exception as e:
+        print(f"Error during startup: {e}")
+        sys.exit(1)
 
 @app.after_serving
 async def shutdown():
     """Cleanup when shutting down."""
-    await application.stop()
-    await application.shutdown()
+    try:
+        await application.stop()
+        await application.shutdown()
+        print("Bot shutdown successfully!")
+    except Exception as e:
+        print(f"Error during shutdown: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     # Initialize application before running
     asyncio.run(setup())
     
+    port = int(os.environ.get("PORT", 5000))
+    
     # Run the Quart application
     app.run(
         host="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000)),
+        port=port,
         debug=False,
         use_reloader=False
     )
