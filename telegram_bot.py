@@ -270,10 +270,10 @@ async def setup():
     music_conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('dl', start_music_download),
-            MessageHandler(Filters.TEXT & Filters.Regex('^Download Music$'), start_music_download)
+            MessageHandler(filters.TEXT & filters.Regex('^Download Music$'), start_music_download)
         ],
         states={
-            EXPECTING_MUSIC_NAME: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_music_name)]
+            EXPECTING_MUSIC_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_music_name)]
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
@@ -282,10 +282,10 @@ async def setup():
     gpt_conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('gpt', start_gpt_query),
-            MessageHandler(Filters.TEXT & Filters.Regex('^GPT$'), start_gpt_query)
+            MessageHandler(filters.TEXT & filters.Regex('^GPT$'), start_gpt_query)
         ],
         states={
-            EXPECTING_GPT_QUERY: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_gpt_query)]
+            EXPECTING_GPT_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gpt_query)]
         },
         fallbacks=[CommandHandler('cancel', cancel)]
     )
@@ -297,7 +297,7 @@ async def setup():
     application.add_handler(CommandHandler("refresh", refresh))
     application.add_handler(music_conv_handler)
     application.add_handler(gpt_conv_handler)
-    application.add_handler(MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_buttons))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
 
     # Set webhook URL
     webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/webhook"
