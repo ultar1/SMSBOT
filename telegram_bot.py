@@ -19,7 +19,10 @@ from openai import AsyncOpenAI
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize AsyncOpenAI client
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = None
+if openai_api_key:
+    client = AsyncOpenAI(api_key=openai_api_key)
 
 # Initialize Quart app
 app = Quart(__name__)
@@ -247,6 +250,12 @@ async def start_gpt_query(update: Update, context: CallbackContext) -> int:
 
 async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
     """Handle the GPT query input."""
+    if not client:
+        await update.message.reply_text(
+            "GPT functionality is not available. Please ask the bot owner to set up the OPENAI_API_KEY."
+        )
+        return ConversationHandler.END
+
     query = update.message.text
     await update.message.reply_text(f"Processing your query: {query}")
     
