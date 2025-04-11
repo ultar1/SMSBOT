@@ -355,16 +355,56 @@ async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
     await update.message.reply_text("🤔 Processing your query...")
 
     try:
-        # Create Gemini response in an async way
-        response = model.generate_content(query)
-        
-        if hasattr(response, 'text'):
-            # Split long responses into chunks if needed
-            chunks = [response.text[i:i+4096] for i in range(0, len(response.text), 4096)]
-            for chunk in chunks:
-                await update.message.reply_text(chunk)
-        else:
-            await update.message.reply_text("I couldn't generate a response. Please try asking something else.")
+        # Create Gemini response with safety settings
+        safety_settings = [
+            {
+                "category": "HARM_CATEGORY_HARASSMENT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_HATE_SPEECH",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+                "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+            }
+        ]
+
+        try:
+            response = model.generate_content(query)
+            
+            if response and hasattr(response, 'text') and response.text:
+                # Process and clean the response text
+                response_text = response.text.strip()
+                
+                if response_text:
+                    # Split long responses into chunks of 4000 characters (leaving buffer for formatting)
+                    chunks = [response_text[i:i+4000] for i in range(0, len(response_text), 4000)]
+                    
+                    # Send each chunk
+                    for chunk in chunks:
+                        await update.message.reply_text(chunk)
+                else:
+                    await update.message.reply_text("I understood your question but couldn't generate a meaningful response. Please try rephrasing your query.")
+            else:
+                await update.message.reply_text("I couldn't process your query. Please try asking something else.")
+                
+        except Exception as generation_error:
+            print(f"Generation error: {str(generation_error)}")
+            if "blocked" in str(generation_error).lower():
+                await update.message.reply_text("I apologize, but I cannot provide a response to that query as it may contain inappropriate content.")
+            else:
+                await update.message.reply_text(
+                    "❌ I encountered an error while generating the response. Please try:\n"
+                    "1. Rephrasing your question\n"
+                    "2. Making your query more specific\n"
+                    "3. Breaking it into smaller parts"
+                )
             
     except Exception as e:
         print(f"Gemini error: {str(e)}")
