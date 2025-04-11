@@ -217,7 +217,7 @@ async def setup():
     application.add_handler(CommandHandler("generate_email", generate_email_command))
     application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
     application.add_handler(CommandHandler("refresh", refresh))
-    application.add_handler(CommandHandler("download_music", download_music))
+    application.add_handler(CommandHandler("dl", download_music))
     application.add_handler(CommandHandler("gpt", gpt_response))
     application.add_handler(MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_buttons))
 
