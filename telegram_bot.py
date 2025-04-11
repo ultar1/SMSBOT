@@ -1,6 +1,7 @@
 import requests
 import time
 import os
+import sys
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 from flask import Flask, request, jsonify, render_template
@@ -55,6 +56,11 @@ def refresh_inbox_command(update: Update, context: CallbackContext) -> None:
     else:
         update.message.reply_text("No email generated yet. Please generate an email first.")
 
+# Add a refresh command to restart the bot
+def refresh(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text("Refreshing the bot...")
+    os.execl(sys.executable, sys.executable, *sys.argv)
+
 def generate_temp_email():
     """Generate a temporary email address using a public API."""
     response = requests.get("https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1")
@@ -102,6 +108,7 @@ def main():
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("generate_email", generate_email_command))
     dp.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
+    dp.add_handler(CommandHandler("refresh", refresh))
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
 
     updater.start_polling()
