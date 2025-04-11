@@ -441,15 +441,9 @@ async def shutdown():
         print("Bot shutdown successfully!")
     except Exception as e:
         print(f"Error during shutdown: {e}")
-        sys.exit(1)
 
 if __name__ == "__main__":
-    # Initialize application before running
-    asyncio.run(setup())
-    
     port = int(os.environ.get("PORT", 5000))
-    
-    # Run the Quart application
     app.run(
         host="0.0.0.0",
         port=port,
