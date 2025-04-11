@@ -54,7 +54,7 @@ async def webhook():
 async def start(update: Update, _) -> None:
     keyboard = [
         ["Generate Email", "Refresh Inbox"],
-        ["Download Music", "GPT"],
+        ["Download Music", "Gemini"],
         ["Refresh Bot"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -62,7 +62,7 @@ async def start(update: Update, _) -> None:
         'Hello! I am your bot. Use the buttons or commands:\n'
         '/start - Show this menu\n'
         '/dl - Download music\n'
-        '/gpt - Chat with GPT\n'
+        '/gemini - Chat with Gemini AI\n'
         '/generate_email - Generate temporary email\n'
         '/refresh_inbox - Check email inbox\n'
         '/refresh - Refresh bot',
@@ -186,14 +186,14 @@ async def handle_buttons(update: Update, context) -> None:
         await refresh(update, context)
     elif text == "Download Music":
         return await start_music_download(update, context)
-    elif text == "GPT":
-        return await start_gpt_query(update, context)
+    elif text == "Gemini":
+        return await start_gemini_query(update, context)
     else:
         await update.message.reply_text("I didn't understand that. Please use the buttons.")
 
 # Define conversation states
 EXPECTING_MUSIC_NAME = 1
-EXPECTING_GPT_QUERY = 2
+EXPECTING_GEMINI_QUERY = 2  # Changed from EXPECTING_GPT_QUERY
 
 # Store user states
 user_states = {}
@@ -310,6 +310,11 @@ async def start_gpt_query(update: Update, context: CallbackContext) -> int:
     """Start the GPT query conversation."""
     await update.message.reply_text("Please provide your query for GPT.")
     return EXPECTING_GPT_QUERY
+
+async def start_gemini_query(update: Update, context: CallbackContext) -> int:
+    """Start the Gemini query conversation."""
+    await update.message.reply_text("Please provide your query for Gemini AI.")
+    return EXPECTING_GPT_QUERY  # We'll keep using the same state name
 
 async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
     """Handle the query input using Gemini."""
