@@ -33,8 +33,9 @@ def get_inbox():
 
 @app.route("/", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put(update)
+    json_data = request.get_json(force=True)
+    update = Update.de_json(json_data, application.bot)
+    application.process_update(update)
     return "OK", 200
 
 @app.route("/")
