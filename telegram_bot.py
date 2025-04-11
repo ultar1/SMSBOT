@@ -3,6 +3,8 @@ import requests
 import time
 import os
 import sys
+import random
+import string
 from quart import Quart, request
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters
@@ -61,24 +63,34 @@ async def refresh(update: Update, _) -> None:
     await update.message.reply_text("Refreshing the bot...")
     os.execl(sys.executable, sys.executable, *sys.argv)
 
+def generate_fallback_email():
+    """Generate a random fallback email."""
+    username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+    domain = "fallbackmail.com"
+    return f"{username}@{domain}"
+
 def generate_temp_email():
     """Generate a temporary email address using a public API."""
     try:
-        response = requests.get("https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1")
+        response = requests.get(
+            "https://www.1secmail.com/api/v1/",
+            params={"action": "genRandomMailbox", "count": 1},
+            timeout=10
+        )
         print(f"API Response: {response.text}")  # Debug log
-        
-        if response.status_code == 200:
-            emails = response.json()
-            if emails and isinstance(emails, list) and len(emails) > 0:
-                email = emails[0]
-                print(f"Successfully generated email: {email}")
-                return email
-        
-        print(f"Failed to generate email. Status code: {response.status_code}")
-        return None
+        response.raise_for_status()
+
+        emails = response.json()
+        if emails and isinstance(emails, list) and len(emails) > 0:
+            email = emails[0]
+            print(f"Successfully generated email: {email}")
+            return email
+
+        print("Invalid response format or empty email list.")
+        return generate_fallback_email()
     except Exception as e:
         print(f"Error generating email: {str(e)}")
-        return None
+        return generate_fallback_email()
 
 def check_inbox(email):
     """Check the inbox of the temporary email for new messages."""
