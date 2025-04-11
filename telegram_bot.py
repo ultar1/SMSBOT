@@ -371,63 +371,77 @@ async def cancel(update: Update, context: CallbackContext) -> int:
 
 async def setup():
     """Set up the application and webhook."""
-    # Create conversation handler for music download
-    music_conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler('dl', start_music_download),
-            MessageHandler(filters.Regex('^Download Music$'), start_music_download)
-        ],
-        states={
-            EXPECTING_MUSIC_NAME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|Gemini|Refresh Bot)$'), handle_music_name)
-            ]
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        name="music_conversation",
-        persistent=False
-    )
+    try:
+        # Create conversation handler for music download
+        music_conv_handler = ConversationHandler(
+            entry_points=[
+                CommandHandler('dl', start_music_download),
+                MessageHandler(filters.Regex('^Download Music$'), start_music_download)
+            ],
+            states={
+                EXPECTING_MUSIC_NAME: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|Gemini|Refresh Bot)$'), handle_music_name)
+                ]
+            },
+            fallbacks=[CommandHandler('cancel', cancel)],
+            name="music_conversation",
+            persistent=False
+        )
 
-    # Create conversation handler for Gemini
-    gemini_conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler('gemini', start_gemini_query),
-            MessageHandler(filters.Regex('^Gemini$'), start_gemini_query)
-        ],
-        states={
-            EXPECTING_GEMINI_QUERY: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|Gemini|Refresh Bot)$'), handle_gpt_query)
-            ]
-        },
-        fallbacks=[CommandHandler('cancel', cancel)],
-        name="gemini_conversation",
-        persistent=False
-    )
+        # Create conversation handler for Gemini
+        gemini_conv_handler = ConversationHandler(
+            entry_points=[
+                CommandHandler('gemini', start_gemini_query),
+                MessageHandler(filters.Regex('^Gemini$'), start_gemini_query)
+            ],
+            states={
+                EXPECTING_GEMINI_QUERY: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|Gemini|Refresh Bot)$'), handle_gpt_query)
+                ]
+            },
+            fallbacks=[CommandHandler('cancel', cancel)],
+            name="gemini_conversation",
+            persistent=False
+        )
 
-    # Remove all handlers and add them in the correct order
-    application.handlers.clear()
-    
-    # Add handlers in the correct order
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("generate_email", generate_email_command))
-    application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
-    application.add_handler(CommandHandler("refresh", refresh))
-    application.add_handler(music_conv_handler)
-    application.add_handler(gemini_conv_handler)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
+        # Initialize application
+        await application.initialize()
+        
+        # Remove all handlers and add them in the correct order
+        application.handlers.clear()
+        
+        # Add handlers in the correct order
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("generate_email", generate_email_command))
+        application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
+        application.add_handler(CommandHandler("refresh", refresh))
+        application.add_handler(music_conv_handler)
+        application.add_handler(gemini_conv_handler)
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
 
-    # Set webhook URL
-    webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/"
-    await application.bot.set_webhook(url=webhook_url)
-    print(f"Webhook set to {webhook_url}")
+        # Set webhook URL with explicit HTTPS
+        webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/"
+        await application.bot.set_webhook(
+            url=webhook_url,
+            allowed_updates=['message', 'callback_query'],
+            drop_pending_updates=True
+        )
+        print(f"Webhook set to {webhook_url}")
+        
+        # Start the application
+        await application.start()
+        print("Bot initialized and webhook set successfully!")
+        
+    except Exception as e:
+        print(f"Error in setup: {str(e)}")
+        raise
 
 @app.before_serving
 async def startup():
     """Initialize the bot before serving."""
     try:
-        await setup()
-        await application.initialize()
-        await application.start()
-        print("Baby started successfully!")
+        await setup()  # This function already handles initialization and startup
+        print("Bot started successfully!")
     except Exception as e:
         print(f"Error during startup: {e}")
         sys.exit(1)
