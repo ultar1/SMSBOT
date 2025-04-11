@@ -12,7 +12,7 @@ from telegram.ext import (
     ConversationHandler, CallbackContext, filters
 )
 import yt_dlp
-from openai import AsyncOpenAI
+import google.generativeai as genai
 
 # Initialize Quart app
 app = Quart(__name__)
@@ -20,18 +20,9 @@ app = Quart(__name__)
 # Store the current email globally
 current_email = None
 
-# Initialize OpenAI client
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key:
-    print("Warning: OPENAI_API_KEY environment variable is not set")
-    client = None
-else:
-    try:
-        client = AsyncOpenAI(api_key=openai_api_key)
-        print("OpenAI client initialized successfully")
-    except Exception as e:
-        print(f"Error initializing OpenAI client: {str(e)}")
-        client = None
+# Initialize Gemini
+genai.configure(api_key="AIzaSyDsvDWz-lOhuGyQV5rL-uumbtlNamXqfWM")
+model = genai.GenerativeModel('gemini-pro')
 
 # Initialize the Telegram application
 application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY").build()
@@ -321,36 +312,19 @@ async def start_gpt_query(update: Update, context: CallbackContext) -> int:
     return EXPECTING_GPT_QUERY
 
 async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
-    """Handle the GPT query input."""
+    """Handle the query input using Gemini."""
     query = update.message.text
     await update.message.reply_text("🤔 Processing your query...")
 
-    if not openai_api_key:
-        await update.message.reply_text(
-            "❌ GPT functionality is not available. Please ask the bot owner to set up the OPENAI_API_KEY."
-        )
-        return ConversationHandler.END
-
     try:
-        client = AsyncOpenAI(api_key=openai_api_key)
-        response = await client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": query}
-            ],
-            max_tokens=1000,
-            temperature=0.7,
-        )
-        
-        answer = response.choices[0].message.content.strip()
-        if answer:
-            await update.message.reply_text(answer)
+        response = await model.generate_content(query)
+        if response.text:
+            await update.message.reply_text(response.text)
         else:
             await update.message.reply_text("I couldn't generate a response. Please try asking something else.")
             
     except Exception as e:
-        print(f"GPT error: {str(e)}")
+        print(f"Gemini error: {str(e)}")
         await update.message.reply_text(
             "❌ Sorry, I encountered an error while processing your query. Please try again later."
         )
