@@ -211,39 +211,27 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
     try:
         output_dir = "/app/downloads"  # Use /app directory on Heroku
         os.makedirs(output_dir, exist_ok=True)
-        
-        # Configure yt-dlp with more reliable options
-        ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
-            'extractaudio': True,
-            'audioformat': 'mp3',
-            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
-            'ignoreerrors': True,
+
+        # Basic options for initial search
+        search_opts = {
+            'format': 'bestaudio/best',
+            'quiet': True,
             'no_warnings': True,
-            'quiet': False,
-            'verbose': True,
-            'extract_flat': False,
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '128',
-            }],
+            'extract_flat': True,
+            'default_search': 'ytsearch',
+            'nocheckcertificate': True,
+            'ignoreerrors': True,
+            'no_color': True,
+            'noprogress': True,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
-            },
-            'socket_timeout': 30,
-            'retries': 3
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            }
         }
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
+        try:
+            # First search for the video
+            with yt_dlp.YoutubeDL(search_opts) as ydl:
                 print(f"Searching for: {music_name}")
-                # Search for the video
                 result = ydl.extract_info(f"ytsearch:{music_name}", download=False)
                 
                 if not result or 'entries' not in result or not result['entries']:
@@ -253,8 +241,14 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
 
                 # Get the first result
                 video = result['entries'][0]
-                video_url = video.get('webpage_url')
+                video_url = video.get('webpage_url', video.get('url'))
                 title = video.get('title', 'Unknown Title')
+                duration = video.get('duration', 0)
+                
+                # Check duration (if available) - limit to ~10 minutes
+                if duration and duration > 600:
+                    await update.message.reply_text("❌ This video is too long. Please choose a shorter song (under 10 minutes).")
+                    return ConversationHandler.END
                 
                 if not video_url:
                     print("Could not extract video URL")
@@ -263,27 +257,61 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
 
                 await update.message.reply_text(f"📥 Found: {title}\nDownloading...")
 
-                # Download with retries
+                # Configure download options
+                download_opts = {
+                    'format': 'bestaudio[ext=m4a]/bestaudio/best',
+                    'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '128',
+                    }],
+                    'prefer_ffmpeg': True,
+                    'keepvideo': False,
+                    'quiet': False,
+                    'verbose': True,
+                    'no_warnings': True,
+                    'ignoreerrors': True,
+                    'no_color': True,
+                    'noprogress': False,
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.7',
+                        'Accept-Language': 'en-us,en;q=0.5',
+                    },
+                    'socket_timeout': 30,
+                    'retries': 3,
+                    'fragment_retries': 3,
+                    'hls_prefer_native': True
+                }
+
+                print(f"Attempting to download: {video_url}")
+                
+                # Try downloading with retries
                 max_retries = 3
+                downloaded_file = None
+                
                 for attempt in range(max_retries):
                     try:
                         print(f"Download attempt {attempt + 1}/{max_retries}")
-                        # Download the video
-                        ydl.download([video_url])
-                        break
+                        with yt_dlp.YoutubeDL(download_opts) as ydl:
+                            info = ydl.extract_info(video_url, download=True)
+                            if info:
+                                # Look for the downloaded file
+                                print("Looking for downloaded file...")
+                                for file in os.listdir(output_dir):
+                                    if file.endswith('.mp3'):
+                                        downloaded_file = os.path.join(output_dir, file)
+                                        break
+                                if downloaded_file:
+                                    break
                     except Exception as e:
                         print(f"Download attempt {attempt + 1} failed: {str(e)}")
-                        if attempt == max_retries - 1:
+                        if attempt == max_retries - 1:  # Last attempt failed
                             raise
+                        await asyncio.sleep(2)  # Wait before retrying
                         continue
-
-                # Look for the downloaded file
-                print("Looking for downloaded file...")
-                downloaded_file = None
-                for file in os.listdir(output_dir):
-                    if file.endswith('.mp3'):
-                        downloaded_file = os.path.join(output_dir, file)
-                        break
 
                 if downloaded_file and os.path.exists(downloaded_file):
                     try:
@@ -292,29 +320,47 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
                         print(f"File size: {file_size} bytes")
                         
                         if file_size > 0:
-                            with open(downloaded_file, 'rb') as audio:
-                                await update.message.reply_audio(
-                                    audio=audio,
-                                    title=title,
-                                    performer=video.get('uploader', 'Unknown Artist'),
-                                    duration=video.get('duration')
-                                )
-                            await update.message.reply_text(f"✅ Successfully sent: {title}")
+                            # Try to send with retries
+                            max_send_retries = 3
+                            for send_attempt in range(max_send_retries):
+                                try:
+                                    with open(downloaded_file, 'rb') as audio:
+                                        await update.message.reply_audio(
+                                            audio=audio,
+                                            title=title,
+                                            performer=video.get('uploader', 'Unknown Artist'),
+                                            duration=duration
+                                        )
+                                    await update.message.reply_text(f"✅ Successfully sent: {title}")
+                                    break
+                                except Exception as e:
+                                    print(f"Send attempt {send_attempt + 1} failed: {str(e)}")
+                                    if "File is too big" in str(e):
+                                        await update.message.reply_text("❌ Sorry, this audio file is too large to send. Please try a shorter song.")
+                                        break
+                                    elif send_attempt == max_send_retries - 1:
+                                        await update.message.reply_text("❌ Error sending the audio file. Please try a different song.")
+                                    await asyncio.sleep(2)
                         else:
                             print("File exists but is empty")
                             await update.message.reply_text("❌ Downloaded file is empty. Please try another song.")
                     except Exception as e:
-                        print(f"Error sending file: {str(e)}")
-                        if "File is too big" in str(e):
-                            await update.message.reply_text("❌ Sorry, this audio file is too large to send. Please try a shorter song.")
-                        else:
-                            await update.message.reply_text("❌ Error sending the audio file. Please try a different song.")
+                        print(f"Error handling file: {str(e)}")
+                        await update.message.reply_text("❌ Error processing the audio file. Please try a different song.")
                 else:
-                    print("No MP3 file found")
+                    print("No MP3 file found after download")
                     await update.message.reply_text("❌ Failed to process the audio. Please try another song.")
 
-            except Exception as e:
-                print(f"Download error: {str(e)}")
+        except Exception as e:
+            print(f"Download error: {str(e)}")
+            error_message = str(e).lower()
+            if "copyright" in error_message:
+                await update.message.reply_text("❌ This song is not available due to copyright restrictions. Please try another song.")
+            elif "not available in your country" in error_message:
+                await update.message.reply_text("❌ This song is not available in the current region. Please try another song.")
+            elif "private video" in error_message:
+                await update.message.reply_text("❌ This video is private. Please try another song.")
+            else:
                 await update.message.reply_text(
                     "❌ Sorry, I couldn't download that music. Please try:\n"
                     "1. A different song name\n"
@@ -333,7 +379,10 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
                 for file in os.listdir(output_dir):
                     file_path = os.path.join(output_dir, file)
                     if os.path.isfile(file_path):
-                        os.remove(file_path)
+                        try:
+                            os.remove(file_path)
+                        except Exception as e:
+                            print(f"Error removing file {file_path}: {str(e)}")
         except Exception as e:
             print(f"Error cleaning up: {str(e)}")
     
