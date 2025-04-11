@@ -28,6 +28,12 @@ def get_inbox():
     else:
         return jsonify({"error": "No email generated yet."}), 400
 
+@app.route("/", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), updater.bot)
+    updater.dispatcher.process_update(update)
+    return "OK", 200
+
 @app.route("/")
 def index():
     return render_template("index.html")
