@@ -200,46 +200,44 @@ async def start_music_download(update: Update, context: CallbackContext) -> int:
 async def handle_music_name(update: Update, context: CallbackContext) -> int:
     """Handle the music name input."""
     music_name = update.message.text
-    await update.message.reply_text(f"Searching for '{music_name}'...")
+    await update.message.reply_text(f"🔍 Searching for '{music_name}'...")
     
     try:
-        # Create a temporary cookies file
-        cookies_content = """# Netscape HTTP Cookie File
-# https://curl.haxx.se/rfc/cookie_spec.html
-.youtube.com	TRUE	/	TRUE	0	VISITOR_PRIVACY_METADATA	CgJHQhIEGgAgFA%3D%3D
-.youtube.com	TRUE	/	TRUE	0	ST-xuwub9	session_logininfo=AFmmF2swRAIgcTtsmhpuH-EHhDzontzuw1xT3y106AWfjpBMaztC8k8CIF6_zD35g4fInXHGBBqwwtoBD-ABRXxRWfpjgTSwGf6_%3AQUQ3MjNmeGJibXZLTnZya1dfTEZQLWxLOGNoN1ZLZ1pkZFlvUEZoaFlhVW51MnRDeUMxV3p6eEJ2cEdiQWdlVVBjaGszQWZBMlVIbGdHUG1FeDUzRE83UU4zWGlGMnNaU2M5S0FXY0tRdlJCZkxid09neUloUVlwREtSUG5vQkZxeDVIbWVKQ2R4dl9FYU5CUU1fUEhTSTBDT0RqZzVtTWd3
-.youtube.com	TRUE	/	TRUE	0	_Secure-3PSID	g.a000uAgzaeQJI-GW4afa5eHCLPA9trukRqfk9ScKv08Md-Oh68Y5ZfxR6ENnnW-NKE_CXbmCDQACgYKAVwSARUSFQHGX2Miwp4DqtCiQ3dnBxpcEwzd-hoVAUF8yKq_Ovw_tv8LT2qGPoZByMRm0076
-.youtube.com	TRUE	/	TRUE	0	LOGIN_INFO	AFmmF2swRAIgcTtsmhpuH-EHhDzontzuw1xT3y106AWfjpBMaztC8k8CIF6_zD35g4fInXHGBBqwwtoBD-ABRXxRWfpjgTSwGf6_:QUQ3MjNmeGJibXZLTnZya1dfTEZQLWxLOGNoN1ZLZ1pkZFlvUEZoaFlhVW51MnRDeUMxV3p6eEJ2cEdiQWdlVVBjaGszQWZBMlVIbGdHUG1FeDUzRE83UU4zWGlGMnNaU2M5S0FXY0tRdlJCZkxid09neUloUVlwREtSUG5vQkZxeDVIbWVKQ2R4dl9FYU5CUU1fUEhTSTBDT0RqZzVtTWd3"""
-        
-        cookies_file = "youtube_cookies.txt"
-        with open(cookies_file, "w") as f:
-            f.write(cookies_content)
-        
+        # Configure yt-dlp options
         ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'cookiefile': cookies_file,  # Use the cookies file
-            'outtmpl': f"{music_name}.mp3",
+            'format': 'bestaudio',
+            'no_warnings': True,
+            'noplaylist': True,
+            'quiet': True,
+            'extract_audio': True,
+            'audioformat': 'mp3',
+            'default_search': 'ytsearch1:',
+            'outtmpl': '%(title)s.%(ext)s'
         }
-        
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"ytsearch:{music_name}"])
+            # First search for the video
+            result = ydl.extract_info(f"ytsearch:{music_name}", download=False)
+            if 'entries' not in result or not result['entries']:
+                await update.message.reply_text("❌ Could not find the requested music. Please try a different search term.")
+                return ConversationHandler.END
+
+            # Get the first result
+            video = result['entries'][0]
+            title = video.get('title', 'Unknown Title')
+            await update.message.reply_text(f"📥 Found: {title}\nDownloading...")
+
+            # Download the video
+            video_url = video['webpage_url']
+            ydl.download([video_url])
             
-        # Clean up the cookies file
-        import os
-        if os.path.exists(cookies_file):
-            os.remove(cookies_file)
+            await update.message.reply_text(f"✅ Successfully downloaded: {title}")
             
-        await update.message.reply_text(f"Music '{music_name}' downloaded successfully.")
     except Exception as e:
-        await update.message.reply_text(f"Failed to download music: {str(e)}")
-        # Clean up the cookies file in case of error
-        if os.path.exists(cookies_file):
-            os.remove(cookies_file)
+        print(f"Download error: {str(e)}")
+        await update.message.reply_text(
+            "❌ Sorry, I couldn't download that music. Please try another song or try again later."
+        )
     
     return ConversationHandler.END
 
@@ -250,26 +248,30 @@ async def start_gpt_query(update: Update, context: CallbackContext) -> int:
 
 async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
     """Handle the GPT query input."""
+    query = update.message.text
+
     if not client:
         await update.message.reply_text(
-            "GPT functionality is not available. Please ask the bot owner to set up the OPENAI_API_KEY."
+            "❌ GPT functionality is not available. Please ask the bot owner to set up the OPENAI_API_KEY."
         )
         return ConversationHandler.END
 
-    query = update.message.text
-    await update.message.reply_text(f"Processing your query: {query}")
-    
     try:
+        # Create the chat completion
         response = await client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": query}
-            ]
+            messages=[{"role": "user", "content": query}],
+            max_tokens=500,
+            temperature=0.7,
         )
+        
+        # Extract and send the response
         answer = response.choices[0].message.content.strip()
         await update.message.reply_text(answer)
+        
     except Exception as e:
-        await update.message.reply_text(f"Failed to get GPT response: {str(e)}")
+        print(f"GPT error: {str(e)}")
+        await update.message.reply_text("❌ Failed to get GPT response. Please try again later.")
     
     return ConversationHandler.END
 
@@ -284,35 +286,42 @@ async def setup():
     music_conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('dl', start_music_download),
-            MessageHandler(filters.TEXT & filters.Regex('^Download Music$'), start_music_download)
+            MessageHandler(filters.Regex('^Download Music$'), start_music_download)
         ],
         states={
-            EXPECTING_MUSIC_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_music_name)]
+            EXPECTING_MUSIC_NAME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_music_name)
+            ]
         },
-        fallbacks=[CommandHandler('cancel', cancel)]
+        fallbacks=[CommandHandler('cancel', cancel)],
+        name="music_conversation"
     )
 
     # Create conversation handler for GPT
     gpt_conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('gpt', start_gpt_query),
-            MessageHandler(filters.TEXT & filters.Regex('^GPT$'), start_gpt_query)
+            MessageHandler(filters.Regex('^GPT$'), start_gpt_query)
         ],
         states={
-            EXPECTING_GPT_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gpt_query)]
+            EXPECTING_GPT_QUERY: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gpt_query)
+            ]
         },
-        fallbacks=[CommandHandler('cancel', cancel)]
+        fallbacks=[CommandHandler('cancel', cancel)],
+        name="gpt_conversation"
     )
 
-    # Add all handlers
+    # Add handlers
+    application.add_handler(music_conv_handler)
+    application.add_handler(gpt_conv_handler)
+    
+    # Add other handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("generate_email", generate_email_command))
     application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
     application.add_handler(CommandHandler("refresh", refresh))
-    application.add_handler(music_conv_handler)
-    application.add_handler(gpt_conv_handler)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
-
+    
     # Set webhook URL
     webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/webhook"
     await application.bot.set_webhook(url=webhook_url)
@@ -324,6 +333,7 @@ async def startup():
     await setup()
     await application.initialize()
     await application.start()
+    print("Bot started successfully!")
 
 @app.after_serving
 async def shutdown():
