@@ -19,10 +19,24 @@ application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8Rklux
 @app.route("/", methods=["POST"])
 async def webhook():
     if request.method == "POST":
-        json_data = await request.get_json()
-        update = Update.de_json(json_data, application.bot)
-        await application.process_update(update)
-    return "ok"
+        try:
+            json_data = await request.get_json()
+            # Print the received data for debugging
+            print("Received update:", json_data)
+            
+            # Ensure update_id is present
+            if 'update_id' not in json_data:
+                print("Missing update_id in update")
+                return "OK", 200
+                
+            update = Update.de_json(json_data, application.bot)
+            await application.process_update(update)
+            return "ok"
+        except Exception as e:
+            print(f"Error processing update: {str(e)}")
+            # Return 200 OK even on error to prevent Telegram from retrying
+            return "OK", 200
+    return "OK"
 
 async def start(update: Update, _) -> None:
     keyboard = [["Generate Email", "Refresh Inbox"], ["Refresh Bot"]]
