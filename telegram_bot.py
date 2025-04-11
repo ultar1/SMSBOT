@@ -267,7 +267,7 @@ async def setup():
     music_conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('dl', start_music_download),
-            MessageHandler(Filters.TEXT.filter(pattern='^Download Music$'), start_music_download)
+            MessageHandler(Filters.TEXT & Filters.Regex('^Download Music$'), start_music_download)
         ],
         states={
             EXPECTING_MUSIC_NAME: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_music_name)]
@@ -279,7 +279,7 @@ async def setup():
     gpt_conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('gpt', start_gpt_query),
-            MessageHandler(Filters.TEXT.filter(pattern='^GPT$'), start_gpt_query)
+            MessageHandler(Filters.TEXT & Filters.Regex('^GPT$'), start_gpt_query)
         ],
         states={
             EXPECTING_GPT_QUERY: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_gpt_query)]
@@ -314,7 +314,7 @@ async def shutdown():
     await application.stop()
     await application.shutdown()
 
-if __name__ == "__main__":
+if __name__:
     # Run the Quart application
     app.run(
         host="0.0.0.0",
