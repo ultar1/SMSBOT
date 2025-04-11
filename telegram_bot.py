@@ -22,7 +22,16 @@ current_email = None
 
 # Initialize OpenAI client
 openai_api_key = os.getenv("OPENAI_API_KEY")
-client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+if not openai_api_key:
+    print("Warning: OPENAI_API_KEY environment variable is not set")
+    client = None
+else:
+    try:
+        client = AsyncOpenAI(api_key=openai_api_key)
+        print("OpenAI client initialized successfully")
+    except Exception as e:
+        print(f"Error initializing OpenAI client: {str(e)}")
+        client = None
 
 # Initialize the Telegram application
 application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY").build()
@@ -210,71 +219,86 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
     
     try:
         # Configure yt-dlp options
-        output_dir = "downloads"
+        output_dir = "/tmp/downloads"  # Use /tmp directory on Heroku
         os.makedirs(output_dir, exist_ok=True)
         
         ydl_opts = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
-            'nocheckcertificate': True,
-            'no_warnings': True,
-            'extract_flat': False,
+            'noplaylist': True,
+            'default_search': 'ytsearch1:',
             'quiet': True,
-            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s')
+            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
+            'extract_audio': True,
+            'audio_format': 'mp3',
+            'force_generic_extractor': True
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # First try to get video info
-            info = ydl.extract_info(f"ytsearch:{music_name}", download=False)
-            
-            if not info or 'entries' not in info or not info['entries']:
-                await update.message.reply_text("❌ Could not find the requested music. Please try a different search term.")
-                return ConversationHandler.END
-
-            video = info['entries'][0]
-            title = video.get('title', 'Unknown Title')
-            await update.message.reply_text(f"📥 Found: {title}\nDownloading...")
-
-            # Download the video
-            ydl.download([video['webpage_url']])
-            
-            # Find the downloaded file
-            expected_filename = os.path.join(output_dir, f"{title}.mp3")
-            if os.path.exists(expected_filename):
-                # Send the audio file
-                await update.message.reply_audio(
-                    audio=open(expected_filename, 'rb'),
-                    title=title,
-                    performer=video.get('uploader', 'Unknown Artist')
-                )
-                # Clean up the file after sending
-                os.remove(expected_filename)
-                await update.message.reply_text(f"✅ Successfully sent: {title}")
-            else:
-                await update.message.reply_text("❌ Sorry, there was an error processing the audio file.")
+            try:
+                # Search for the video
+                result = ydl.extract_info(f"ytsearch:{music_name}", download=False)
                 
+                if not result or 'entries' not in result or not result['entries']:
+                    await update.message.reply_text("❌ Could not find the requested music. Please try a different search term.")
+                    return ConversationHandler.END
+
+                # Get the first result
+                video = result['entries'][0]
+                title = video.get('title', 'Unknown Title')
+                await update.message.reply_text(f"📥 Found: {title}\nDownloading...")
+
+                # Download the video
+                ydl.download([video['webpage_url']])
+                
+                # Find and send the downloaded file
+                output_file = os.path.join(output_dir, f"{title}.mp3")
+                if not os.path.exists(output_file):
+                    # Try alternative filename pattern
+                    files = os.listdir(output_dir)
+                    mp3_files = [f for f in files if f.endswith('.mp3')]
+                    if mp3_files:
+                        output_file = os.path.join(output_dir, mp3_files[0])
+
+                if os.path.exists(output_file):
+                    # Send the audio file
+                    await update.message.reply_audio(
+                        audio=open(output_file, 'rb'),
+                        title=title,
+                        performer=video.get('uploader', 'Unknown Artist'),
+                        duration=video.get('duration')
+                    )
+                    await update.message.reply_text(f"✅ Successfully sent: {title}")
+                else:
+                    await update.message.reply_text("❌ Sorry, there was an error processing the audio file.")
+
+            except Exception as e:
+                print(f"Download error: {str(e)}")
+                await update.message.reply_text(
+                    "❌ Sorry, I couldn't download that music. Please try:\n"
+                    "1. A different song name\n"
+                    "2. Including the artist name\n"
+                    "3. Using a shorter title"
+                )
+
     except Exception as e:
-        print(f"Error in music download: {str(e)}")
-        await update.message.reply_text(
-            "❌ Sorry, I couldn't download that music. Please try:\n"
-            "1. A different song name\n"
-            "2. Including the artist name\n"
-            "3. Using a shorter title"
-        )
+        print(f"Outer error: {str(e)}")
+        await update.message.reply_text("❌ An error occurred. Please try again later.")
     
-    # Clean up downloads directory
-    try:
-        if os.path.exists(output_dir):
-            for file in os.listdir(output_dir):
-                file_path = os.path.join(output_dir, file)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-    except Exception as e:
-        print(f"Error cleaning up downloads: {str(e)}")
+    finally:
+        # Clean up downloads directory
+        try:
+            if os.path.exists(output_dir):
+                for file in os.listdir(output_dir):
+                    file_path = os.path.join(output_dir, file)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+        except Exception as e:
+            print(f"Error cleaning up downloads: {str(e)}")
     
     return ConversationHandler.END
 
@@ -335,11 +359,12 @@ async def setup():
         ],
         states={
             EXPECTING_MUSIC_NAME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_music_name)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|GPT|Refresh Bot)$'), handle_music_name)
             ]
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        name="music_conversation"
+        name="music_conversation",
+        persistent=False
     )
 
     # Create conversation handler for GPT
@@ -350,13 +375,17 @@ async def setup():
         ],
         states={
             EXPECTING_GPT_QUERY: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gpt_query)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|GPT|Refresh Bot)$'), handle_gpt_query)
             ]
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        name="gpt_conversation"
+        name="gpt_conversation",
+        persistent=False
     )
 
+    # Remove all handlers and add them in the correct order
+    application.handlers.clear()
+    
     # Add handlers in the correct order
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("generate_email", generate_email_command))
@@ -367,7 +396,7 @@ async def setup():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
 
     # Set webhook URL
-    webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/"  # Changed to use root path
+    webhook_url = "https://smsbott-52febd4592e2.herokuapp.com/"
     await application.bot.set_webhook(url=webhook_url)
     print(f"Webhook set to {webhook_url}")
 

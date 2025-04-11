@@ -1,1 +1,1 @@
-web: hypercorn telegram_bot:app --bind 0.0.0.0:$PORT --access-log - --error-log -
+web: hypercorn telegram_bot:app --bind 0.0.0.0:$PORT --worker-class=asyncio --workers=1
