@@ -16,6 +16,7 @@ import yt_dlp
 
 # Initialize Quart app
 app = Quart(__name__)
+app.config['PROVIDE_AUTOMATIC_OPTIONS'] = True
 
 # Initialize Gemini
 genai.configure(api_key="AIzaSyDsvDWz-lOhuGyQV5rL-uumbtlNamXqfWM")
