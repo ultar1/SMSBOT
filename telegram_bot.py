@@ -175,6 +175,7 @@ def check_inbox(email):
         return []
 
 async def handle_buttons(update: Update, context) -> None:
+    """Handle button presses."""
     text = update.message.text
     if text == "Generate Email":
         await generate_email_command(update, context)
@@ -183,9 +184,9 @@ async def handle_buttons(update: Update, context) -> None:
     elif text == "Refresh Bot":
         await refresh(update, context)
     elif text == "Download Music":
-        await start_music_download(update, context)
+        return await start_music_download(update, context)
     elif text == "GPT":
-        await start_gpt_query(update, context)
+        return await start_gpt_query(update, context)
     else:
         await update.message.reply_text("I didn't understand that. Please use the buttons.")
 
@@ -207,7 +208,10 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
     await update.message.reply_text(f"🔍 Searching for '{music_name}'...")
     
     try:
-        # Configure yt-dlp options with multiple format options
+        # Configure yt-dlp options
+        output_dir = "downloads"
+        os.makedirs(output_dir, exist_ok=True)
+        
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -217,56 +221,59 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
             }],
             'nocheckcertificate': True,
             'no_warnings': True,
-            'extract_flat': True,
+            'extract_flat': False,
             'quiet': True,
-            'ignoreerrors': True,
-            'noplaylist': True,
-            'outtmpl': '%(title)s.%(ext)s'
+            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s')
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
-                # First try to get video info
-                info = ydl.extract_info(f"ytsearch:{music_name}", download=False)
-                
-                if not info or 'entries' not in info or not info['entries']:
-                    await update.message.reply_text("❌ Could not find the requested music. Please try a different search term.")
-                    return ConversationHandler.END
+            # First try to get video info
+            info = ydl.extract_info(f"ytsearch:{music_name}", download=False)
+            
+            if not info or 'entries' not in info or not info['entries']:
+                await update.message.reply_text("❌ Could not find the requested music. Please try a different search term.")
+                return ConversationHandler.END
 
-                video = info['entries'][0]
-                title = video.get('title', 'Unknown Title')
-                await update.message.reply_text(f"📥 Found: {title}\nStarting download...")
+            video = info['entries'][0]
+            title = video.get('title', 'Unknown Title')
+            await update.message.reply_text(f"📥 Found: {title}\nDownloading...")
 
-                # Try downloading with different format options if needed
-                try:
-                    ydl.download([video['url']])
-                except:
-                    # If first attempt fails, try with different options
-                    ydl_opts.update({
-                        'format': 'worstaudio/worst',
-                        'postprocessors': [{
-                            'key': 'FFmpegExtractAudio',
-                            'preferredcodec': 'mp3',
-                            'preferredquality': '128',
-                        }]
-                    })
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
-                        ydl2.download([video['url']])
-
-                await update.message.reply_text(f"✅ Successfully downloaded: {title}")
-
-            except Exception as e:
-                print(f"Error downloading: {str(e)}")
-                await update.message.reply_text(
-                    "❌ Sorry, I couldn't download that music. Please try:\n"
-                    "1. A different song name\n"
-                    "2. Including the artist name\n"
-                    "3. Using a shorter title"
+            # Download the video
+            ydl.download([video['webpage_url']])
+            
+            # Find the downloaded file
+            expected_filename = os.path.join(output_dir, f"{title}.mp3")
+            if os.path.exists(expected_filename):
+                # Send the audio file
+                await update.message.reply_audio(
+                    audio=open(expected_filename, 'rb'),
+                    title=title,
+                    performer=video.get('uploader', 'Unknown Artist')
                 )
+                # Clean up the file after sending
+                os.remove(expected_filename)
+                await update.message.reply_text(f"✅ Successfully sent: {title}")
+            else:
+                await update.message.reply_text("❌ Sorry, there was an error processing the audio file.")
                 
     except Exception as e:
-        print(f"Outer error: {str(e)}")
-        await update.message.reply_text("❌ An error occurred. Please try again later.")
+        print(f"Error in music download: {str(e)}")
+        await update.message.reply_text(
+            "❌ Sorry, I couldn't download that music. Please try:\n"
+            "1. A different song name\n"
+            "2. Including the artist name\n"
+            "3. Using a shorter title"
+        )
+    
+    # Clean up downloads directory
+    try:
+        if os.path.exists(output_dir):
+            for file in os.listdir(output_dir):
+                file_path = os.path.join(output_dir, file)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+    except Exception as e:
+        print(f"Error cleaning up downloads: {str(e)}")
     
     return ConversationHandler.END
 
@@ -278,29 +285,37 @@ async def start_gpt_query(update: Update, context: CallbackContext) -> int:
 async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
     """Handle the GPT query input."""
     query = update.message.text
+    await update.message.reply_text("🤔 Processing your query...")
 
-    if not client:
+    if not openai_api_key:
         await update.message.reply_text(
             "❌ GPT functionality is not available. Please ask the bot owner to set up the OPENAI_API_KEY."
         )
         return ConversationHandler.END
 
     try:
-        # Create the chat completion
+        client = AsyncOpenAI(api_key=openai_api_key)
         response = await client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": query}],
-            max_tokens=500,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": query}
+            ],
+            max_tokens=1000,
             temperature=0.7,
         )
         
-        # Extract and send the response
         answer = response.choices[0].message.content.strip()
-        await update.message.reply_text(answer)
-        
+        if answer:
+            await update.message.reply_text(answer)
+        else:
+            await update.message.reply_text("I couldn't generate a response. Please try asking something else.")
+            
     except Exception as e:
         print(f"GPT error: {str(e)}")
-        await update.message.reply_text("❌ Failed to get GPT response. Please try again later.")
+        await update.message.reply_text(
+            "❌ Sorry, I encountered an error while processing your query. Please try again later."
+        )
     
     return ConversationHandler.END
 
