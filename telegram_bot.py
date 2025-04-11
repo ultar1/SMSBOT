@@ -7,7 +7,7 @@ import random
 import string
 from quart import Quart, request
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters, ConversationHandler, CallbackContext
 import yt_dlp
 import openai
 
@@ -67,39 +67,6 @@ async def refresh_inbox_command(update: Update, _) -> None:
 async def refresh(update: Update, _) -> None:
     await update.message.reply_text("Refreshing the bot...")
     os.execl(sys.executable, sys.executable, *sys.argv)
-
-async def download_music(update: Update, context) -> None:
-    """Ask for a music name and download it."""
-    await update.message.reply_text("Please provide the name of the music you want to download.")
-
-    # Dynamically add a handler for the user's response
-    def music_response_handler(update: Update, context):
-        context.dispatcher.remove_handler(music_response_handler)  # Remove the handler after use
-        asyncio.create_task(process_music_download(update, update.message.text))
-
-    context.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, music_response_handler))
-
-async def process_music_download(update: Update, music_name: str):
-    """Process the music download based on the user's input."""
-    await update.message.reply_text(f"Searching for '{music_name}'...")
-
-    # Use yt_dlp to download music
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'outtmpl': f"{music_name}.mp3",
-    }
-
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"ytsearch:{music_name}"])
-        await update.message.reply_text(f"Music '{music_name}' downloaded successfully.")
-    except Exception as e:
-        await update.message.reply_text(f"Failed to download music: {str(e)}")
 
 async def gpt_response(update: Update, context) -> None:
     """Ask for a query and respond using GPT."""
@@ -214,21 +181,109 @@ async def handle_buttons(update: Update, context) -> None:
     elif text == "Refresh Bot":
         await refresh(update, context)
     elif text == "Download Music":
-        await download_music(update, context)
+        await start_music_download(update, context)
     elif text == "GPT":
-        await gpt_response(update, context)
+        await start_gpt_query(update, context)
     else:
         await update.message.reply_text("I didn't understand that. Please use the buttons.")
 
+# Define conversation states
+EXPECTING_MUSIC_NAME = 1
+EXPECTING_GPT_QUERY = 2
+
+# Store user states
+user_states = {}
+
+async def start_music_download(update: Update, context: CallbackContext) -> int:
+    """Start the music download conversation."""
+    await update.message.reply_text("Please provide the name of the music you want to download.")
+    return EXPECTING_MUSIC_NAME
+
+async def handle_music_name(update: Update, context: CallbackContext) -> int:
+    """Handle the music name input."""
+    music_name = update.message.text
+    await update.message.reply_text(f"Searching for '{music_name}'...")
+    
+    try:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'outtmpl': f"{music_name}.mp3",
+        }
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([f"ytsearch:{music_name}"])
+        await update.message.reply_text(f"Music '{music_name}' downloaded successfully.")
+    except Exception as e:
+        await update.message.reply_text(f"Failed to download music: {str(e)}")
+    
+    return ConversationHandler.END
+
+async def start_gpt_query(update: Update, context: CallbackContext) -> int:
+    """Start the GPT query conversation."""
+    await update.message.reply_text("Please provide your query for GPT.")
+    return EXPECTING_GPT_QUERY
+
+async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
+    """Handle the GPT query input."""
+    query = update.message.text
+    await update.message.reply_text(f"Processing your query: {query}")
+    
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=query,
+            max_tokens=150
+        )
+        answer = response.choices[0].text.strip()
+        await update.message.reply_text(answer)
+    except Exception as e:
+        await update.message.reply_text(f"Failed to get GPT response: {str(e)}")
+    
+    return ConversationHandler.END
+
+async def cancel(update: Update, context: CallbackContext) -> int:
+    """Cancel the conversation."""
+    await update.message.reply_text("Operation cancelled.")
+    return ConversationHandler.END
+
 async def setup():
     """Set up the application and webhook."""
-    # Add handlers
+    # Create conversation handler for music download
+    music_conv_handler = ConversationHandler(
+        entry_points=[
+            CommandHandler('dl', start_music_download),
+            MessageHandler(Filters.regex('^Download Music$'), start_music_download)
+        ],
+        states={
+            EXPECTING_MUSIC_NAME: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_music_name)]
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+
+    # Create conversation handler for GPT
+    gpt_conv_handler = ConversationHandler(
+        entry_points=[
+            CommandHandler('gpt', start_gpt_query),
+            MessageHandler(Filters.regex('^GPT$'), start_gpt_query)
+        ],
+        states={
+            EXPECTING_GPT_QUERY: [MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_gpt_query)]
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+
+    # Add all handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("generate_email", generate_email_command))
     application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
     application.add_handler(CommandHandler("refresh", refresh))
-    application.add_handler(CommandHandler("dl", download_music))
-    application.add_handler(CommandHandler("gpt", gpt_response))
+    application.add_handler(music_conv_handler)
+    application.add_handler(gpt_conv_handler)
     application.add_handler(MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_buttons))
 
     # Set webhook URL
