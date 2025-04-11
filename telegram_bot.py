@@ -3,11 +3,12 @@ import requests
 import time
 import os
 import sys
+from quart import Quart, request
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters as Filters
-from flask import Flask, request
 
-app = Flask(__name__)
+# Initialize Flask app with Quart for async support
+app = Quart(__name__)
 
 # Store the current email globally
 current_email = None
@@ -18,9 +19,9 @@ application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8Rklux
 @app.route("/", methods=["POST"])
 async def webhook():
     if request.method == "POST":
-        await application.update_queue.put(
-            Update.de_json(data=request.get_json(force=True), bot=application.bot)
-        )
+        json_data = await request.get_json()
+        update = Update.de_json(json_data, application.bot)
+        await application.process_update(update)
     return "ok"
 
 async def start(update: Update, _) -> None:
@@ -100,9 +101,9 @@ async def main():
     # Set the webhook
     await application.bot.set_webhook(url="https://smsbott-52febd4592e2.herokuapp.com/")
     
-    # Start the Flask application
+    # Start the Quart application
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    await app.run_task(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     asyncio.run(main())
