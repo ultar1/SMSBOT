@@ -5,7 +5,7 @@ import os
 import sys
 import random
 import string
-from quart import Quart
+from quart import Quart, request  # Make sure request is imported
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, 
@@ -31,7 +31,8 @@ application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8Rklux
 async def webhook():
     """Handle incoming webhook updates from Telegram."""
     try:
-        json_data = await app.request.get_json()
+        json_data = await request.get_json()
+        print(f"Received update: {json_data}")  # Debug log
         update = Update.de_json(json_data, application.bot)
         await application.process_update(update)
         return {"ok": True}
