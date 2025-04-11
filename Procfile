@@ -1,1 +1,1 @@
-web: hypercorn telegram_bot:app --bind "0.0.0.0:$PORT" --workers 1 --worker-class asyncio --graceful-timeout 0 --keep-alive 2
+web: hypercorn telegram_bot:app --bind "0.0.0.0:$PORT" --access-log - --error-log - --reload-app false
