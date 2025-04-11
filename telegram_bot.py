@@ -72,7 +72,7 @@ async def download_music(update: Update, context) -> None:
     """Ask for a music name and download it."""
     await update.message.reply_text("Please provide the name of the music you want to download.")
 
-    def music_response_handler(update: Update, context):
+    async def music_response_handler(update: Update, context):
         music_name = update.message.text
         await update.message.reply_text(f"Searching for '{music_name}'...")
 
