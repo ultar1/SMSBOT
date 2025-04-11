@@ -2,7 +2,7 @@ import requests
 import time
 import os
 import sys
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, MessageHandler, filters as Filters, CallbackContext
 from flask import Flask, request, jsonify, render_template
 
@@ -32,9 +32,14 @@ def get_inbox():
 def index():
     return render_template("index.html")
 
-# Define a start command handler
+# Update the start command to include buttons
 def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('Hello! I am your bot. How can I assist you?')
+    keyboard = [["Generate Email", "Refresh Inbox"], ["Refresh Bot"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    update.message.reply_text(
+        'Hello! I am your bot. Use the buttons below to interact with me.',
+        reply_markup=reply_markup
+    )
 
 # Define a message handler
 def echo(update: Update, context: CallbackContext) -> None:
@@ -93,6 +98,18 @@ def check_inbox(email):
     else:
         print("Failed to check inbox.")
 
+# Update the message handler to handle button presses
+def handle_buttons(update: Update, context: CallbackContext) -> None:
+    text = update.message.text
+    if text == "Generate Email":
+        generate_email_command(update, context)
+    elif text == "Refresh Inbox":
+        refresh_inbox_command(update, context)
+    elif text == "Refresh Bot":
+        refresh(update, context)
+    else:
+        update.message.reply_text("I didn't understand that. Please use the buttons.")
+
 def main():
     email = generate_temp_email()
     if email:
@@ -109,7 +126,7 @@ def main():
     dp.add_handler(CommandHandler("generate_email", generate_email_command))
     dp.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
     dp.add_handler(CommandHandler("refresh", refresh))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_buttons))
 
     updater.start_polling()
     updater.idle()
