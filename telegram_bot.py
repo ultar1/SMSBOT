@@ -11,6 +11,9 @@ app = Flask(__name__)
 # Store the current email globally
 current_email = None
 
+# Move the updater to a global scope
+updater = Updater("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY", use_context=True)
+
 @app.route("/generate_email", methods=["GET"])
 def generate_email():
     global current_email
@@ -124,8 +127,6 @@ def main():
             check_inbox(email)
             time.sleep(10)  # Check inbox every 10 seconds
 
-    # Replace 'YOUR_TOKEN' with the actual bot token
-    updater = Updater("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY", use_context=True)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
