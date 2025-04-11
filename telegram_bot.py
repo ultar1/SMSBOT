@@ -88,18 +88,47 @@ def generate_temp_email():
 
 def check_inbox(email):
     """Check the inbox of the temporary email for new messages."""
-    username, domain = email.split("@")
-    response = requests.get(f"https://www.1secmail.com/api/v1/?action=getMessages&login={username}&domain={domain}")
-    if response.status_code == 200:
+    try:
+        username, domain = email.split("@")
+        response = requests.get(
+            "https://www.1secmail.com/api/v1/",
+            params={
+                "action": "getMessages",
+                "login": username,
+                "domain": domain
+            },
+            timeout=10
+        )
+        response.raise_for_status()
+        
         messages = response.json()
         if messages:
             for message in messages:
-                msg_id = message['id']
-                msg_response = requests.get(f"https://www.1secmail.com/api/v1/?action=readMessage&login={username}&domain={domain}&id={msg_id}")
-                if msg_response.status_code == 200:
+                try:
+                    msg_id = message['id']
+                    msg_response = requests.get(
+                        "https://www.1secmail.com/api/v1/",
+                        params={
+                            "action": "readMessage",
+                            "login": username,
+                            "domain": domain,
+                            "id": msg_id
+                        },
+                        timeout=10
+                    )
+                    msg_response.raise_for_status()
                     message.update(msg_response.json())
+                except (requests.RequestException, KeyError) as e:
+                    print(f"Error fetching message {msg_id}: {str(e)}")
+                    continue
             return messages
-    return []
+        return []
+    except requests.RequestException as e:
+        print(f"Error checking inbox: {str(e)}")
+        return []
+    except Exception as e:
+        print(f"Unexpected error checking inbox: {str(e)}")
+        return []
 
 async def handle_buttons(update: Update, context) -> None:
     text = update.message.text
