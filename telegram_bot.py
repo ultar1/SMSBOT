@@ -5,24 +5,14 @@ import os
 import sys
 import random
 import string
-from quart import Quart, request
+from quart import Quart
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, 
     ConversationHandler, CallbackContext, filters
 )
 import yt_dlp
-import openai
 from openai import AsyncOpenAI
-
-# Set up OpenAI API key
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-# Initialize AsyncOpenAI client
-openai_api_key = os.getenv("OPENAI_API_KEY")
-client = None
-if openai_api_key:
-    client = AsyncOpenAI(api_key=openai_api_key)
 
 # Initialize Quart app
 app = Quart(__name__)
@@ -30,25 +20,24 @@ app = Quart(__name__)
 # Store the current email globally
 current_email = None
 
+# Initialize OpenAI client
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
+
 # Initialize the Telegram application
 application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY").build()
 
-@app.route("/webhook", methods=["POST"])
+@app.route("/", methods=["POST"])
 async def webhook():
     """Handle incoming webhook updates from Telegram."""
-    if request.method == "POST":
-        try:
-            json_data = await request.get_json()
-            print(f"Received update: {json_data}")  # Debug log
-            
-            update = Update.de_json(json_data, application.bot)
-            await application.process_update(update)
-            
-            return {"ok": True}
-        except Exception as e:
-            print(f"Error processing update: {str(e)}")
-            return {"ok": True}
-    return {"ok": True}
+    try:
+        json_data = await app.request.get_json()
+        update = Update.de_json(json_data, application.bot)
+        await application.process_update(update)
+        return {"ok": True}
+    except Exception as e:
+        print(f"Error processing update: {str(e)}")
+        return {"ok": True}
 
 async def start(update: Update, _) -> None:
     keyboard = [
