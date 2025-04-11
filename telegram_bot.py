@@ -72,10 +72,10 @@ async def download_music(update: Update, context) -> None:
     """Ask for a music name and download it."""
     await update.message.reply_text("Please provide the name of the music you want to download.")
 
-    # Wait for the user's response
+    # Dynamically add a handler for the user's response
     def music_response_handler(update: Update, context):
-        music_name = update.message.text
-        asyncio.create_task(process_music_download(update, music_name))
+        context.dispatcher.remove_handler(music_response_handler)  # Remove the handler after use
+        asyncio.create_task(process_music_download(update, update.message.text))
 
     context.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, music_response_handler))
 
@@ -105,10 +105,10 @@ async def gpt_response(update: Update, context) -> None:
     """Ask for a query and respond using GPT."""
     await update.message.reply_text("Please provide your query for GPT.")
 
-    # Wait for the user's response
+    # Dynamically add a handler for the user's response
     def gpt_query_handler(update: Update, context):
-        query = update.message.text
-        asyncio.create_task(process_gpt_query(update, query))
+        context.dispatcher.remove_handler(gpt_query_handler)  # Remove the handler after use
+        asyncio.create_task(process_gpt_query(update, update.message.text))
 
     context.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, gpt_query_handler))
 
