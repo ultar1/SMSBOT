@@ -86,30 +86,8 @@ async def refresh(update: Update, _) -> None:
     os.execl(sys.executable, sys.executable, *sys.argv)
 
 async def gpt_response(update: Update, context) -> None:
-    """Ask for a query and respond using GPT."""
-    await update.message.reply_text("Please provide your query for GPT.")
-
-    # Dynamically add a handler for the user's response
-    def gpt_query_handler(update: Update, context):
-        context.dispatcher.remove_handler(gpt_query_handler)  # Remove the handler after use
-        asyncio.create_task(process_gpt_query(update, update.message.text))
-
-    context.dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, gpt_query_handler))
-
-async def process_gpt_query(update: Update, query: str):
-    """Process the GPT query based on the user's input."""
-    await update.message.reply_text(f"Processing your query: {query}")
-
-    try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=query,
-            max_tokens=150
-        )
-        answer = response.choices[0].text.strip()
-        await update.message.reply_text(answer)
-    except Exception as e:
-        await update.message.reply_text(f"Failed to get GPT response: {str(e)}")
+    """Start the GPT conversation."""
+    await start_gpt_query(update, context)
 
 def generate_fallback_email():
     """Generate a random fallback email."""
