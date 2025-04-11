@@ -309,12 +309,12 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
 async def start_gpt_query(update: Update, context: CallbackContext) -> int:
     """Start the GPT query conversation."""
     await update.message.reply_text("Please provide your query for GPT.")
-    return EXPECTING_GPT_QUERY
+    return EXPECTING_GEMINI_QUERY
 
 async def start_gemini_query(update: Update, context: CallbackContext) -> int:
     """Start the Gemini query conversation."""
     await update.message.reply_text("Please provide your query for Gemini AI.")
-    return EXPECTING_GPT_QUERY  # We'll keep using the same state name
+    return EXPECTING_GEMINI_QUERY  # We'll keep using the same state name
 
 async def handle_gpt_query(update: Update, context: CallbackContext) -> int:
     """Handle the query input using Gemini."""
@@ -351,7 +351,7 @@ async def setup():
         ],
         states={
             EXPECTING_MUSIC_NAME: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|GPT|Refresh Bot)$'), handle_music_name)
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|Gemini|Refresh Bot)$'), handle_music_name)
             ]
         },
         fallbacks=[CommandHandler('cancel', cancel)],
@@ -359,19 +359,19 @@ async def setup():
         persistent=False
     )
 
-    # Create conversation handler for GPT
-    gpt_conv_handler = ConversationHandler(
+    # Create conversation handler for Gemini
+    gemini_conv_handler = ConversationHandler(
         entry_points=[
-            CommandHandler('gpt', start_gpt_query),
-            MessageHandler(filters.Regex('^GPT$'), start_gpt_query)
+            CommandHandler('gemini', start_gemini_query),
+            MessageHandler(filters.Regex('^Gemini$'), start_gemini_query)
         ],
         states={
-            EXPECTING_GPT_QUERY: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|GPT|Refresh Bot)$'), handle_gpt_query)
+            EXPECTING_GEMINI_QUERY: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^(Generate Email|Refresh Inbox|Download Music|Gemini|Refresh Bot)$'), handle_gpt_query)
             ]
         },
         fallbacks=[CommandHandler('cancel', cancel)],
-        name="gpt_conversation",
+        name="gemini_conversation",
         persistent=False
     )
 
@@ -384,7 +384,7 @@ async def setup():
     application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
     application.add_handler(CommandHandler("refresh", refresh))
     application.add_handler(music_conv_handler)
-    application.add_handler(gpt_conv_handler)
+    application.add_handler(gemini_conv_handler)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
 
     # Set webhook URL
