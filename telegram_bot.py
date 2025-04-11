@@ -114,26 +114,28 @@ def handle_buttons(update: Update, context: CallbackContext) -> None:
         update.message.reply_text("I didn't understand that. Please use the buttons.")
 
 # Update the main function to use the Application class
-def main():
-    email = generate_temp_email()
-    if email:
-        print("Waiting for messages...")
-        while True:
-            check_inbox(email)
-            time.sleep(10)  # Check inbox every 10 seconds
-
+async def main():
+    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("generate_email", generate_email_command))
     application.add_handler(CommandHandler("refresh_inbox", refresh_inbox_command))
     application.add_handler(CommandHandler("refresh", refresh))
     application.add_handler(MessageHandler(Filters.TEXT & ~Filters.COMMAND, handle_buttons))
 
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000)),
-        url_path="",
-        webhook_url="https://smsbott-52febd4592e2.herokuapp.com/"
-    )
+    # Start the webhook
+    await application.bot.set_webhook(url="https://smsbott-52febd4592e2.herokuapp.com/")
+    
+    # Start the Flask application
+    port = int(os.environ.get("PORT", 5000))
+    webserver = Flask(__name__)
+    
+    @webserver.route("/", methods=["POST"])
+    def webhook():
+        update = Update.de_json(request.get_json(force=True), application.bot)
+        application.process_update(update)
+        return "OK"
+    
+    webserver.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
