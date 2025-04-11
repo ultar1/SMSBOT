@@ -257,7 +257,8 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
 
                 await update.message.reply_text(f"📥 Found: {title}\nDownloading...")
 
-                # Configure download options
+                # Configure download options with ffmpeg settings
+                ffmpeg_location = os.environ.get('FFMPEG_PATH', 'ffmpeg')
                 download_opts = {
                     'format': 'bestaudio[ext=m4a]/bestaudio/best',
                     'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
@@ -265,15 +266,23 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
                         'preferredquality': '128',
+                        'nopostoverwrites': False,
+                        'FFmpegExtractAudioPP': {
+                            'preferredcodec': 'mp3',
+                            'preferredquality': '128',
+                        }
                     }],
+                    'ffmpeg_location': ffmpeg_location,
                     'prefer_ffmpeg': True,
                     'keepvideo': False,
+                    'writethumbnail': False,
                     'quiet': False,
                     'verbose': True,
                     'no_warnings': True,
                     'ignoreerrors': True,
                     'no_color': True,
                     'noprogress': False,
+                    'progress_hooks': [lambda d: print(f"Download progress: {d['_percent_str'] if '_percent_str' in d else 'N/A'}")],
                     'http_headers': {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
                         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -283,7 +292,9 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
                     'socket_timeout': 30,
                     'retries': 3,
                     'fragment_retries': 3,
-                    'hls_prefer_native': True
+                    'hls_prefer_native': True,
+                    'external_downloader_args': ['-timeout', '30'],
+                    'ffmpeg_args': ['-nostdin', '-y']
                 }
 
                 print(f"Attempting to download: {video_url}")
@@ -360,6 +371,8 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
                 await update.message.reply_text("❌ This song is not available in the current region. Please try another song.")
             elif "private video" in error_message:
                 await update.message.reply_text("❌ This video is private. Please try another song.")
+            elif "unable to extract" in error_message or "cipher" in error_message:
+                await update.message.reply_text("❌ Unable to process this video. Please try another song.")
             else:
                 await update.message.reply_text(
                     "❌ Sorry, I couldn't download that music. Please try:\n"
