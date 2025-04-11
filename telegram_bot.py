@@ -203,41 +203,66 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
     await update.message.reply_text(f"🔍 Searching for '{music_name}'...")
     
     try:
-        # Configure yt-dlp options
+        # Configure yt-dlp options with multiple format options
         ydl_opts = {
-            'format': 'bestaudio',
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'nocheckcertificate': True,
             'no_warnings': True,
-            'noplaylist': True,
+            'extract_flat': True,
             'quiet': True,
-            'extract_audio': True,
-            'audioformat': 'mp3',
-            'default_search': 'ytsearch1:',
+            'ignoreerrors': True,
+            'noplaylist': True,
             'outtmpl': '%(title)s.%(ext)s'
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # First search for the video
-            result = ydl.extract_info(f"ytsearch:{music_name}", download=False)
-            if 'entries' not in result or not result['entries']:
-                await update.message.reply_text("❌ Could not find the requested music. Please try a different search term.")
-                return ConversationHandler.END
+            try:
+                # First try to get video info
+                info = ydl.extract_info(f"ytsearch:{music_name}", download=False)
+                
+                if not info or 'entries' not in info or not info['entries']:
+                    await update.message.reply_text("❌ Could not find the requested music. Please try a different search term.")
+                    return ConversationHandler.END
 
-            # Get the first result
-            video = result['entries'][0]
-            title = video.get('title', 'Unknown Title')
-            await update.message.reply_text(f"📥 Found: {title}\nDownloading...")
+                video = info['entries'][0]
+                title = video.get('title', 'Unknown Title')
+                await update.message.reply_text(f"📥 Found: {title}\nStarting download...")
 
-            # Download the video
-            video_url = video['webpage_url']
-            ydl.download([video_url])
-            
-            await update.message.reply_text(f"✅ Successfully downloaded: {title}")
-            
+                # Try downloading with different format options if needed
+                try:
+                    ydl.download([video['url']])
+                except:
+                    # If first attempt fails, try with different options
+                    ydl_opts.update({
+                        'format': 'worstaudio/worst',
+                        'postprocessors': [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'mp3',
+                            'preferredquality': '128',
+                        }]
+                    })
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl2:
+                        ydl2.download([video['url']])
+
+                await update.message.reply_text(f"✅ Successfully downloaded: {title}")
+
+            except Exception as e:
+                print(f"Error downloading: {str(e)}")
+                await update.message.reply_text(
+                    "❌ Sorry, I couldn't download that music. Please try:\n"
+                    "1. A different song name\n"
+                    "2. Including the artist name\n"
+                    "3. Using a shorter title"
+                )
+                
     except Exception as e:
-        print(f"Download error: {str(e)}")
-        await update.message.reply_text(
-            "❌ Sorry, I couldn't download that music. Please try another song or try again later."
-        )
+        print(f"Outer error: {str(e)}")
+        await update.message.reply_text("❌ An error occurred. Please try again later.")
     
     return ConversationHandler.END
 
