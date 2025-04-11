@@ -37,10 +37,20 @@ async def webhook():
     return {"ok": True}
 
 async def start(update: Update, _) -> None:
-    keyboard = [["Generate Email", "Refresh Inbox"], ["Refresh Bot", "Download Music", "GPT"]]
+    keyboard = [
+        ["Generate Email", "Refresh Inbox"],
+        ["Download Music", "GPT"],
+        ["Refresh Bot"]
+    ]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text(
-        'Hello! I am your bot. Use the buttons below to interact with me.',
+        'Hello! I am your bot. Use the buttons or commands:\n'
+        '/start - Show this menu\n'
+        '/dl - Download music\n'
+        '/gpt - Chat with GPT\n'
+        '/generate_email - Generate temporary email\n'
+        '/refresh_inbox - Check email inbox\n'
+        '/refresh - Refresh bot',
         reply_markup=reply_markup
     )
 
