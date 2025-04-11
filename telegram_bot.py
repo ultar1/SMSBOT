@@ -427,7 +427,7 @@ async def startup():
         await setup()
         await application.initialize()
         await application.start()
-        print("Bot started successfully!")
+        print("Baby started successfully!")
     except Exception as e:
         print(f"Error during startup: {e}")
         sys.exit(1)
