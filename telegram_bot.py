@@ -222,20 +222,31 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
         output_dir = "/tmp/downloads"  # Use /tmp directory on Heroku
         os.makedirs(output_dir, exist_ok=True)
         
+        # Create cookies file
+        cookies = """# Netscape HTTP Cookie File
+.youtube.com	TRUE	/	TRUE	0	VISITOR_PRIVACY_METADATA	CgJORxIEGgAgDQ%3D%3D
+.youtube.com	TRUE	/	TRUE	0	__Secure-3PSID	g.a000vAgzaXaoUv1lfqGXwF6Zq-EMUaAPgcfoBRGKFy7_sqpIEql8St292ulyECZ1G5EFisnYowACgYKAbUSARUSFQHGX2MirrEkqfKXDX-WmRa8gqfE2xoVAUF8yKrDwG0-WvGRFv2sF_DYTp9t0076
+.youtube.com	TRUE	/	TRUE	0	SIDCC	AKEyXzWUOdGxFHAPyzpF9y719BZEjM9A00S1rGZ75qjfYI1j_YqTSo2TRWT5E_K_kV9ooqsp3ig
+.youtube.com	TRUE	/	TRUE	0	SID	g.a000vAgzaXaoUv1lfqGXwF6Zq-EMUaAPgcfoBRGKFy7_sqpIEql8D17hw7luxjnDnZHIou-TuQACgYKASQSARUSFQHGX2MihZqVL4JB68O_Ubzt6wTXvRoVAUF8yKrbltMdV7lzK37KzG2ZJTys0076
+.youtube.com	TRUE	/	TRUE	0	LOGIN_INFO	AFmmF2swRgIhAJaX938y0qaO7SRZ9J-4nFNuE_VsvV_d1YV15oU4JYxKAiEAwkMOXRbQhv9g57qZrfzA0NGYbXYBRaR4sJUJ2RukvlU:QUQ3MjNmd2QxeXE4eXFtSi1ZQ0txZFA3SjJ6bFBYNUNhX3R5ZVB5TFBhV2NBbVpZeTkwcG0wa2thTmpVY3JRT2M1TkNXamg2YUpFUmRXSG8wV2o2Z3dTS1RiaExiS0xZdndnSG1NWTl3Ui0zd3hRMnc3Qk1SWHM5eUh5eVlxWFlBd2s0Y3NqZVRHNkd6eWs1YWdHXy1OSTRaVGdHazN4cDB3
+.youtube.com	TRUE	/	TRUE	0	VISITOR_INFO1_LIVE	ky1HG6C5ZZA"""
+
+        cookies_file = os.path.join(output_dir, "youtube_cookies.txt")
+        with open(cookies_file, "w") as f:
+            f.write(cookies)
+        
         ydl_opts = {
-            'format': 'bestaudio',
+            'format': 'bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
+            'cookiefile': cookies_file,
             'noplaylist': True,
-            'default_search': 'ytsearch1:',
             'quiet': True,
-            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
-            'extract_audio': True,
-            'audio_format': 'mp3',
-            'force_generic_extractor': True
+            'no_warnings': True,
+            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s')
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -290,15 +301,17 @@ async def handle_music_name(update: Update, context: CallbackContext) -> int:
         await update.message.reply_text("❌ An error occurred. Please try again later.")
     
     finally:
-        # Clean up downloads directory
+        # Clean up downloads directory and cookies file
         try:
+            if os.path.exists(cookies_file):
+                os.remove(cookies_file)
             if os.path.exists(output_dir):
                 for file in os.listdir(output_dir):
                     file_path = os.path.join(output_dir, file)
                     if os.path.isfile(file_path):
                         os.remove(file_path)
         except Exception as e:
-            print(f"Error cleaning up downloads: {str(e)}")
+            print(f"Error cleaning up: {str(e)}")
     
     return ConversationHandler.END
 
