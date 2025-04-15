@@ -24,26 +24,26 @@ model = genai.GenerativeModel('gemini-pro')
 # Store the current email globally
 current_email = None
 
-# Initialize the Telegram application
+# Initialize the Telegram application (webhook-only, no polling)
 application = Application.builder().token("7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY").build()
 
 @app.route("/", methods=["POST"])
 async def webhook():
-    """Handle incoming webhook updates."""
+    """Handle incoming webhook updates from Telegram only."""
     try:
         json_data = await request.get_json()
         print(f"Received update: {json_data}")  # Debug log
-        
-        # Check if this is a Heroku webhook update
+
+        # Ignore non-Telegram webhook updates
         if 'webhook_metadata' in json_data:
-            print("Received Heroku webhook update - ignoring")
+            print("Received non-Telegram webhook update - ignoring")
             return {"ok": True}
-            
-        # This is a Telegram update
+
+        # Validate Telegram update
         if 'update_id' not in json_data:
             print("Invalid Telegram update format")
             return {"ok": True}
-            
+
         update = Update.de_json(json_data, application.bot)
         await application.process_update(update)
         return {"ok": True}
@@ -550,10 +550,10 @@ async def setup():
 
 @app.before_serving
 async def startup():
-    """Initialize the bot before serving."""
+    """Set up the bot and webhook before serving."""
     try:
-        await setup()  # This function already handles initialization and startup
-        print("Bot started successfully!")
+        await setup()
+        print("Bot started and webhook set!")
     except Exception as e:
         print(f"Error during startup: {e}")
         sys.exit(1)
@@ -569,10 +569,7 @@ async def shutdown():
         print(f"Error during shutdown: {e}")
 
 if __name__ == "__main__":
-    # Initialize application before running
-    asyncio.run(setup())
-    
-    # Run the Quart application with proper worker configuration
+    # Only run Quart app (no polling)
     app.run(
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000))
