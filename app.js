@@ -12,7 +12,7 @@ const {
 } = require('telegraf');
 
 // --- Configuration ---
-const TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'; // Replace with your Telegram bot token
+const TELEGRAM_BOT_TOKEN = '7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY'; // Replace with your Telegram bot token
 const SESSION_FOLDER = './session';
 
 // --- Telegraf Bot Setup ---
