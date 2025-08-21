@@ -35,7 +35,7 @@ app.listen(PORT, () => {
 // --- WhatsApp Bot Logic ---
 async function startWhatsAppBot(chatId, phoneNumber) {
   const logger = pino({
-    level: 'silent'
+    level: 'debug'
   });
   const {
     state,
