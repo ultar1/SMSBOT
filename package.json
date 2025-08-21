@@ -10,6 +10,7 @@
     "@whiskeysockets/baileys": "^6.7.2",
     "telegraf": "^4.16.1",
     "pino": "^8.21.0",
-    "archiver": "^6.0.2"
+    "archiver": "^6.0.2",
+    "express": "^4.19.2"
   }
 }
