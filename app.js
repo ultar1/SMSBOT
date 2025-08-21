@@ -10,13 +10,27 @@ const fs = require('fs');
 const {
   Telegraf
 } = require('telegraf');
+const express = require('express'); // NEW: Import Express
+const archiver = require('archiver'); // NEW: Import archiver
 
 // --- Configuration ---
-const TELEGRAM_BOT_TOKEN = '7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY'; // Replace with your Telegram bot token
+const TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'; // Replace with your Telegram bot token
 const SESSION_FOLDER = './session';
+const PORT = process.env.PORT || 3000; // NEW: Get port from environment variable
 
 // --- Telegraf Bot Setup ---
 const telegramBot = new Telegraf(TELEGRAM_BOT_TOKEN);
+
+// --- Express Server Setup ---
+const app = express();
+app.get('/', (req, res) => {
+  res.send('WhatsApp bot is running and listening for Telegram commands.');
+});
+
+// Start the Express server
+app.listen(PORT, () => {
+  console.log(`Web server listening on port ${PORT}`);
+});
 
 // --- WhatsApp Bot Logic ---
 async function startWhatsAppBot(chatId, phoneNumber) {
@@ -38,7 +52,6 @@ async function startWhatsAppBot(chatId, phoneNumber) {
     },
   });
 
-  // Handle connection events
   sock.ev.on('connection.update', async (update) => {
     const {
       connection,
@@ -61,7 +74,7 @@ async function startWhatsAppBot(chatId, phoneNumber) {
     if (connection === 'close') {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== 401;
       if (shouldReconnect) {
-        startWhatsAppBot();
+        startWhatsAppBot(chatId, phoneNumber);
       } else {
         telegramBot.telegram.sendMessage(chatId, '*ERROR:* Connection closed, possibly banned. You may need a new session.', {
           parse_mode: 'Markdown'
@@ -73,7 +86,6 @@ async function startWhatsAppBot(chatId, phoneNumber) {
       });
       // After connection, send the session files to the user
       const zipPath = `${SESSION_FOLDER}.zip`;
-      const archiver = require('archiver');
       const output = fs.createWriteStream(zipPath);
       const archive = archiver('zip', {
         zlib: {
