@@ -11,6 +11,7 @@
     "telegraf": "^4.16.1",
     "pino": "^8.21.0",
     "archiver": "^6.0.2",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "libphonenumber-js": "^1.10.60"
   }
 }
