@@ -7,28 +7,19 @@ const {
 } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const fs = require('fs');
-const chalk = require('chalk');
 const {
   Telegraf
 } = require('telegraf');
 
 // --- Configuration ---
-const TELEGRAM_BOT_TOKEN = '7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY'; // Replace with your Telegram bot token
-const ADMIN_TELEGRAM_ID = '7302005705'; // Replace with your Telegram user ID
+const TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'; // Replace with your Telegram bot token
 const SESSION_FOLDER = './session';
 
 // --- Telegraf Bot Setup ---
 const telegramBot = new Telegraf(TELEGRAM_BOT_TOKEN);
 
-// Function to send messages to the Telegram admin
-const sendTelegramMessage = (message) => {
-  telegramBot.telegram.sendMessage(ADMIN_TELEGRAM_ID, message, {
-    parse_mode: 'Markdown'
-  });
-};
-
 // --- WhatsApp Bot Logic ---
-async function startWhatsAppBot() {
+async function startWhatsAppBot(chatId, phoneNumber) {
   const logger = pino({
     level: 'silent'
   });
@@ -56,10 +47,14 @@ async function startWhatsAppBot() {
     } = update;
     if (isNewLogin) {
       try {
-        const code = await sock.requestPairingCode('YOUR_PHONE_NUMBER'); // Replace with the WhatsApp number to link, e.g., '2349163916316'
-        sendTelegramMessage(`Your WhatsApp pairing code is: \`\`\`${code}\`\`\`\n\n*To link your account, go to WhatsApp > Linked Devices > Link with phone number and enter this code.*`);
+        const code = await sock.requestPairingCode(phoneNumber);
+        telegramBot.telegram.sendMessage(chatId, `Your WhatsApp pairing code for number \`${phoneNumber}\` is: \`\`\`${code}\`\`\`\n\n*To link your account, go to WhatsApp > Linked Devices > Link with phone number and enter this code.*`, {
+          parse_mode: 'Markdown'
+        });
       } catch (e) {
-        sendTelegramMessage(`*ERROR:* Failed to generate pairing code. Please check server logs for details.`);
+        telegramBot.telegram.sendMessage(chatId, '*ERROR:* Failed to generate pairing code. Please check server logs for details.', {
+          parse_mode: 'Markdown'
+        });
         console.error('Failed to request pairing code:', e);
       }
     }
@@ -68,11 +63,15 @@ async function startWhatsAppBot() {
       if (shouldReconnect) {
         startWhatsAppBot();
       } else {
-        sendTelegramMessage('*ERROR:* Connection closed, possibly banned. You may need a new session.');
+        telegramBot.telegram.sendMessage(chatId, '*ERROR:* Connection closed, possibly banned. You may need a new session.', {
+          parse_mode: 'Markdown'
+        });
       }
     } else if (connection === 'open') {
-      sendTelegramMessage('*SUCCESS:* WhatsApp session is now connected!');
-      // After connection, send the session files to the admin
+      telegramBot.telegram.sendMessage(chatId, '*SUCCESS:* WhatsApp session is now connected!', {
+        parse_mode: 'Markdown'
+      });
+      // After connection, send the session files to the user
       const zipPath = `${SESSION_FOLDER}.zip`;
       const archiver = require('archiver');
       const output = fs.createWriteStream(zipPath);
@@ -86,28 +85,15 @@ async function startWhatsAppBot() {
       archive.finalize();
 
       output.on('close', () => {
-        telegramBot.telegram.sendDocument(ADMIN_TELEGRAM_ID, {
+        telegramBot.telegram.sendDocument(chatId, {
           source: zipPath
         }, {
-          caption: '*Your WhatsApp session files are ready. Keep this file safe.*'
+          caption: '*Your WhatsApp session files are ready. Keep this file safe.*',
+          parse_mode: 'Markdown'
         }).then(() => {
           fs.unlinkSync(zipPath); // Clean up the zip file
         });
       });
-    }
-  });
-
-  // Handle incoming messages on WhatsApp (optional)
-  sock.ev.on('messages.upsert', async ({
-    messages
-  }) => {
-    for (const msg of messages) {
-      if (msg.key.fromMe) continue;
-      const jid = msg.key.remoteJid;
-      const text = msg.message?.extendedTextMessage?.text || msg.message?.conversation;
-      if (text) {
-        sendTelegramMessage(`*New WhatsApp message from ${jid}:*\n\`\`\`${text}\`\`\``);
-      }
     }
   });
 
@@ -120,8 +106,25 @@ telegramBot.start((ctx) => {
 });
 
 telegramBot.command('connect', async (ctx) => {
-  await ctx.reply('Attempting to connect to WhatsApp... Please wait for a pairing code.');
-  startWhatsAppBot();
+  const phoneNumber = ctx.message.text.split(' ')[1];
+  if (!phoneNumber) {
+    ctx.reply('Please provide a phone number. Usage: `/connect +<number>` (e.g., `/connect +12345678901`)', {
+      parse_mode: 'Markdown'
+    });
+    return;
+  }
+  const cleanNumber = phoneNumber.replace('+', '');
+  if (!/^\d{10,15}$/.test(cleanNumber)) {
+    ctx.reply('Invalid phone number format. Please use digits only with a country code (e.g., `+12345678901`).', {
+      parse_mode: 'Markdown'
+    });
+    return;
+  }
+
+  await ctx.reply(`Attempting to connect to WhatsApp for number \`${cleanNumber}\`... Please wait for a pairing code.`, {
+    parse_mode: 'Markdown'
+  });
+  startWhatsAppBot(ctx.chat.id, cleanNumber);
 });
 
 telegramBot.command('disconnect', async (ctx) => {
