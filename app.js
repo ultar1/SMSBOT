@@ -14,7 +14,7 @@ const express = require('express'); // NEW: Import Express
 const archiver = require('archiver'); // NEW: Import archiver
 
 // --- Configuration ---
-const TELEGRAM_BOT_TOKEN = 'YOUR_TELEGRAM_BOT_TOKEN'; // Replace with your Telegram bot token
+const TELEGRAM_BOT_TOKEN = '7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY'; // Replace with your Telegram bot token
 const SESSION_FOLDER = './session';
 const PORT = process.env.PORT || 3000; // NEW: Get port from environment variable
 
