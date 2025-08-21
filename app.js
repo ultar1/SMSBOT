@@ -10,13 +10,14 @@ const fs = require('fs');
 const {
   Telegraf
 } = require('telegraf');
-const express = require('express'); // NEW: Import Express
-const archiver = require('archiver'); // NEW: Import archiver
+const express = require('express');
+const archiver = require('archiver');
+const { parsePhoneNumber } = require("libphonenumber-js"); // NEW: Import phone number parser
 
 // --- Configuration ---
 const TELEGRAM_BOT_TOKEN = '7433555932:AAGF1T90OpzcEVZSJpUh8RkluxoF-w5Q8CY'; // Replace with your Telegram bot token
 const SESSION_FOLDER = './session';
-const PORT = process.env.PORT || 3000; // NEW: Get port from environment variable
+const PORT = process.env.PORT || 3000;
 
 // --- Telegraf Bot Setup ---
 const telegramBot = new Telegraf(TELEGRAM_BOT_TOKEN);
@@ -35,7 +36,7 @@ app.listen(PORT, () => {
 // --- WhatsApp Bot Logic ---
 async function startWhatsAppBot(chatId, phoneNumber) {
   const logger = pino({
-    level: 'debug'
+    level: 'info' // Set log level to info to see connection details
   });
   const {
     state,
@@ -60,7 +61,8 @@ async function startWhatsAppBot(chatId, phoneNumber) {
     } = update;
     if (isNewLogin) {
       try {
-        const code = await sock.requestPairingCode(phoneNumber);
+        // Baileys requires the phone number without a plus sign
+        const code = await sock.requestPairingCode(phoneNumber); 
         telegramBot.telegram.sendMessage(chatId, `Your WhatsApp pairing code for number \`${phoneNumber}\` is: \`\`\`${code}\`\`\`\n\n*To link your account, go to WhatsApp > Linked Devices > Link with phone number and enter this code.*`, {
           parse_mode: 'Markdown'
         });
@@ -84,7 +86,6 @@ async function startWhatsAppBot(chatId, phoneNumber) {
       telegramBot.telegram.sendMessage(chatId, '*SUCCESS:* WhatsApp session is now connected!', {
         parse_mode: 'Markdown'
       });
-      // After connection, send the session files to the user
       const zipPath = `${SESSION_FOLDER}.zip`;
       const output = fs.createWriteStream(zipPath);
       const archive = archiver('zip', {
@@ -103,7 +104,7 @@ async function startWhatsAppBot(chatId, phoneNumber) {
           caption: '*Your WhatsApp session files are ready. Keep this file safe.*',
           parse_mode: 'Markdown'
         }).then(() => {
-          fs.unlinkSync(zipPath); // Clean up the zip file
+          fs.unlinkSync(zipPath);
         });
       });
     }
@@ -125,14 +126,24 @@ telegramBot.command('connect', async (ctx) => {
     });
     return;
   }
-  const cleanNumber = phoneNumber.replace('+', '');
-  if (!/^\d{10,15}$/.test(cleanNumber)) {
-    ctx.reply('Invalid phone number format. Please use digits only with a country code (e.g., `+12345678901`).', {
+  
+  // Use a dedicated library to parse and validate the phone number
+  let parsedNumber;
+  try {
+    parsedNumber = parsePhoneNumber(phoneNumber);
+    if (!parsedNumber.isValid()) {
+      throw new Error("Invalid phone number");
+    }
+  } catch (e) {
+    ctx.reply('Invalid phone number format. Please use a valid number with a country code (e.g., `+12345678901`).', {
       parse_mode: 'Markdown'
     });
     return;
   }
 
+  // Pass the phone number without the plus sign to the connection function
+  const cleanNumber = parsedNumber.nationalNumber;
+  
   await ctx.reply(`Attempting to connect to WhatsApp for number \`${cleanNumber}\`... Please wait for a pairing code.`, {
     parse_mode: 'Markdown'
   });
@@ -160,7 +171,5 @@ telegramBot.command('disconnect', async (ctx) => {
 telegramBot.launch();
 console.log('Telegram bot is running.');
 
-// Graceful shutdown
 process.once('SIGINT', () => telegramBot.stop('SIGINT'));
 process.once('SIGTERM', () => telegramBot.stop('SIGTERM'));
-
